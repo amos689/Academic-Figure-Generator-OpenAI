@@ -4,10 +4,11 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root: backend/
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = _BACKEND_ROOT.parent
 
 
 class Settings(BaseSettings):
@@ -21,19 +22,20 @@ class Settings(BaseSettings):
     DATABASE_PATH: str = str(_BACKEND_ROOT / "data" / "app.db")
 
     @property
-    def DATABASE_URL(self) -> str:
+    def DATABASE_URL(self) -> str:  # noqa: N802
         return f"sqlite+aiosqlite:///{self.DATABASE_PATH}"
 
     # Data directory (uploads, figures)
     DATA_DIR: str = str(_BACKEND_ROOT / "data")
 
-    # Claude Agent SDK (uses ANTHROPIC_API_KEY env var directly)
-    ANTHROPIC_API_KEY: str = ""
-
-    # NanoBanana / Gemini image generation API
-    NANOBANANA_API_KEY: str = ""
-    NANOBANANA_API_BASE: str = "https://api.keepgo.icu"
-    NANOBANANA_MODEL: str = "gemini-3-pro-image-preview"
+    # OpenAI API (system env -> .env -> these code defaults)
+    OPENAI_API_KEY: str = ""
+    OPENAI_API_BASE: str = "https://api.openai.com/v1"
+    OPENAI_TEXT_MODEL: str = "gpt-5.5"
+    OPENAI_TEXT_REASONING_EFFORT: str = "medium"
+    OPENAI_TEXT_MAX_OUTPUT_TOKENS: int = 12000
+    OPENAI_IMAGE_MODEL: str = "gpt-image-2"
+    OPENAI_IMAGE_QUALITY: str = "high"
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
@@ -52,7 +54,15 @@ class Settings(BaseSettings):
         prefix = prefix.rstrip("/")
         return prefix or "/api/v1"
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    @field_validator("OPENAI_API_BASE")
+    @classmethod
+    def _normalize_openai_api_base(cls, value: str) -> str:
+        return (value or "https://api.openai.com/v1").rstrip("/")
+
+    model_config = SettingsConfigDict(
+        env_file=(str(_PROJECT_ROOT / ".env"), str(_BACKEND_ROOT / ".env")),
+        extra="ignore",
+    )
 
 
 @lru_cache

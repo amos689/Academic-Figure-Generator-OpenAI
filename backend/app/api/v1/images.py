@@ -31,6 +31,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="", tags=["Images"])
 
 
+def _ensure_openai_api_key_configured() -> None:
+    settings = get_settings()
+    if not settings.OPENAI_API_KEY:
+        raise BadRequestException(
+            "OPENAI_API_KEY not configured. Set it in your Mac environment, "
+            "a local .env file, or backend/app/config.py."
+        )
+
+
 async def _get_project(project_id: str, db: AsyncSession) -> Project:
     result = await db.execute(select(Project).where(Project.id == project_id))
     project: Project | None = result.scalar_one_or_none()
@@ -69,9 +78,7 @@ async def _generate_image_async(
     reference_image_path: str | None,
     edit_instruction: str | None,
 ) -> None:
-    """Background task: call NanoBanana API and update DB record."""
-    import base64  # noqa: PLC0415
-
+    """Background task: call OpenAI Image API and update DB record."""
     from app.dependencies import get_async_session_factory  # noqa: PLC0415
     from app.services.image_service import ImageService  # noqa: PLC0415
 
@@ -92,11 +99,10 @@ async def _generate_image_async(
         try:
             image_service = ImageService()
 
-            # Load reference image as base64 if path provided
-            reference_b64: str | None = None
+            # Load reference image bytes if path provided
+            reference_bytes: bytes | None = None
             if reference_image_path and storage.file_exists(reference_image_path):
-                ref_bytes = storage.get_file(reference_image_path)
-                reference_b64 = base64.b64encode(ref_bytes).decode("ascii")
+                reference_bytes = storage.get_file(reference_image_path)
 
             # ImageService.generate_image is synchronous — run in executor
             import asyncio  # noqa: PLC0415
@@ -108,7 +114,7 @@ async def _generate_image_async(
                     prompt=prompt_text,
                     resolution=resolution,
                     aspect_ratio=aspect_ratio,
-                    reference_image_base64=reference_b64,
+                    reference_image_bytes=reference_bytes,
                     edit_instruction=edit_instruction,
                 ),
             )
@@ -116,7 +122,7 @@ async def _generate_image_async(
             # Decode base64 result to bytes and save locally
             image_b64 = generated_data.get("image_base64", "")
             if image_b64:
-                image_bytes = base64.b64decode(image_b64)
+                image_bytes = ImageService.image_bytes_from_base64(image_b64)
                 file_name = f"{image_id}.png"
                 storage_path = storage.save_figure(
                     f"{image.project_id}/{file_name}", image_bytes
@@ -158,9 +164,7 @@ async def generate_image_from_prompt(
     if not prompt.active_prompt:
         raise BadRequestException("Prompt has no text. Generate or edit the prompt first.")
 
-    settings = get_settings()
-    if not settings.NANOBANANA_API_KEY:
-        raise BadRequestException("NANOBANANA_API_KEY not configured. Set it in .env file.")
+    _ensure_openai_api_key_configured()
 
     image = Image(
         prompt_id=prompt.id,
@@ -205,9 +209,7 @@ async def generate_image_direct(
     """Generate an image from custom prompt text (no linked Prompt record)."""
     project_id = data.project_id
 
-    settings = get_settings()
-    if not settings.NANOBANANA_API_KEY:
-        raise BadRequestException("NANOBANANA_API_KEY not configured. Set it in .env file.")
+    _ensure_openai_api_key_configured()
 
     if project_id is None:
         # Auto-create or reuse a default project
@@ -343,15 +345,13 @@ async def edit_image(
     reference_image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Image-to-image editing via NanoBanana API."""
+    """Image-to-image editing via OpenAI Image API."""
     result = await db.execute(select(Image).where(Image.id == image_id))
     source_image: Image | None = result.scalar_one_or_none()
     if source_image is None:
         raise NotFoundException("Image not found")
 
-    settings = get_settings()
-    if not settings.NANOBANANA_API_KEY:
-        raise BadRequestException("NANOBANANA_API_KEY not configured.")
+    _ensure_openai_api_key_configured()
 
     storage = LocalStorageService()
     reference_path: str | None = source_image.storage_path

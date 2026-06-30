@@ -40,6 +40,8 @@ type PromptSettings = {
     colorScheme: string;
 };
 
+const IMAGE_IN_PROGRESS_STATUSES = new Set(['pending', 'generating', 'processing']);
+
 export function ProjectWorkspace() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -201,9 +203,9 @@ export function ProjectWorkspace() {
         };
     }, []);
 
-    // Poll while any image is still processing
+    // Poll while any image is still in progress
     useEffect(() => {
-        const hasProcessing = images.some(img => img.generation_status === 'processing');
+        const hasProcessing = images.some(img => IMAGE_IN_PROGRESS_STATUSES.has(img.generation_status));
         if (!hasProcessing || !id) return;
         const interval = setInterval(() => { fetchProjectData(id, { showLoader: false }); }, 5000);
         return () => clearInterval(interval);
@@ -955,7 +957,9 @@ export function ProjectWorkspace() {
                                         : null;
                                     const settings = getSettings(prompt.id);
                                     const isCompleted = latestImg?.generation_status === 'completed';
-                                    const isProcessing = latestImg?.generation_status === 'processing';
+                                    const isProcessing = latestImg
+                                        ? IMAGE_IN_PROGRESS_STATUSES.has(latestImg.generation_status)
+                                        : false;
 
                                     return (
                                         <Card key={prompt.id} className="overflow-hidden">

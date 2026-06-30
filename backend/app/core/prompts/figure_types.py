@@ -4,7 +4,7 @@ Figure type definitions for the academic-figure-generator service.
 Each figure type corresponds to a category of visual used in top-tier academic
 papers (CVPR, NeurIPS, Nature, IEEE, etc.). The type determines:
 
-  - Default aspect ratio fed to the NanoBanana image API
+  - Default aspect ratio fed to the OpenAI Image API
   - Prompt structuring guidance (referenced by the system prompt)
   - Which sections of a paper typically produce this figure type
   - Typical content and visual vocabulary

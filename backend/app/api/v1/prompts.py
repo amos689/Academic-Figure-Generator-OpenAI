@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.dependencies import get_db
 from app.models.document import Document
@@ -17,7 +18,7 @@ from app.schemas.prompt import (
     PromptStatusResponse,
     PromptUpdate,
 )
-from app.services.claude_code_service import ClaudeCodeService
+from app.services.openai_prompt_service import OpenAIPromptService
 from app.services.prompt_service import PromptService
 
 logger = logging.getLogger(__name__)
@@ -63,11 +64,17 @@ async def generate_prompts(
     data: PromptGenerateRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate figure prompts via Claude Agent SDK (synchronous).
+    """Generate figure prompts via OpenAI Responses API (synchronous).
 
     Requires at least one parsed document attached to the project.
     """
     project = await _get_project(project_id, db)
+    settings = get_settings()
+    if not settings.OPENAI_API_KEY:
+        raise BadRequestException(
+            "OPENAI_API_KEY not configured. Set it in your Mac environment, "
+            "a local .env file, or backend/app/config.py."
+        )
 
     # Find the most recent completed document
     result = await db.execute(
@@ -98,20 +105,21 @@ async def generate_prompts(
 
     color_scheme = data.custom_colors or PRESET_COLOR_SCHEMES.get(data.color_scheme, {})
 
-    # Call Claude via Agent SDK
-    claude_service = ClaudeCodeService()
-    result_data = await claude_service.generate_figure_prompts(
+    # Call OpenAI Responses API
+    openai_service = OpenAIPromptService()
+    result_data = await openai_service.generate_figure_prompts(
         sections=sections,
         color_scheme=color_scheme,
         paper_field=project.paper_field,
         figure_types=data.figure_types,
         user_request=data.user_request,
         max_figures=data.max_figures,
+        template_mode=data.template_mode,
     )
 
     figures = result_data.get("figures", [])
     if not figures:
-        raise BadRequestException("Claude did not generate any figure prompts. Try again.")
+        raise BadRequestException("OpenAI did not generate any figure prompts. Try again.")
 
     # Save to DB
     prompt_service = PromptService(db)
@@ -119,7 +127,7 @@ async def generate_prompts(
         project_id=project.id,
         document_id=document.id,
         figures=figures,
-        claude_model="claude-agent-sdk",
+        claude_model=result_data.get("model", settings.OPENAI_TEXT_MODEL),
     )
 
     logger.info(

@@ -14,62 +14,57 @@ export function Settings() {
                 <CardHeader>
                     <CardTitle>API 配置</CardTitle>
                     <CardDescription>
-                        当前 API 密钥通过项目根目录的 <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">.env</code> 文件管理。
+                        后端优先读取系统环境变量，其次读取本地 <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">.env</code>，
+                        最后才使用 <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">backend/app/config.py</code> 中的空位默认值。
                         修改后请重启后端服务。
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Claude Section */}
+                    {/* OpenAI Section */}
                     <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-foreground">Claude Agent SDK (Anthropic)</h4>
+                        <h4 className="text-sm font-semibold text-foreground">OpenAI 服务</h4>
                         <div className="space-y-2">
-                            <Label>ANTHROPIC_API_KEY</Label>
+                            <Label>OPENAI_API_KEY</Label>
                             <Input
                                 type="password"
-                                placeholder="在 .env 文件中配置"
+                                placeholder="推荐在 Mac 环境变量中配置"
                                 disabled
                                 value="••••••••"
                             />
                             <p className="text-xs text-muted-foreground">
-                                用于 Prompt 生成。配置方式：编辑 <code className="font-mono">.env</code> 文件中的 <code className="font-mono">ANTHROPIC_API_KEY</code> 字段。
-                            </p>
-                        </div>
-                    </div>
-
-                    <hr className="border-muted" />
-
-                    {/* NanoBanana Section */}
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-foreground">NanoBanana 配图服务</h4>
-                        <div className="space-y-2">
-                            <Label>NANOBANANA_API_KEY</Label>
-                            <Input
-                                type="password"
-                                placeholder="在 .env 文件中配置"
-                                disabled
-                                value="••••••••"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                用于图片生成。配置方式：编辑 <code className="font-mono">.env</code> 文件中的 <code className="font-mono">NANOBANANA_API_KEY</code> 字段。
+                                同时用于 Prompt 生成和图片生成。推荐通过 <code className="font-mono">export OPENAI_API_KEY=...</code> 配置；
+                                也可以写入本地 <code className="font-mono">.env</code>，或在个人 fork 中手动填写 <code className="font-mono">config.py</code> 的空位。
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label>NANOBANANA_API_BASE</Label>
+                            <Label>OPENAI_TEXT_MODEL</Label>
                             <Input
                                 type="text"
-                                placeholder="https://api.keepgo.icu"
+                                placeholder="gpt-5.5"
                                 disabled
-                                value="https://api.keepgo.icu"
+                                value="gpt-5.5"
                             />
                             <p className="text-xs text-muted-foreground">
-                                NanoBanana API 地址。默认值：<code className="font-mono">https://api.keepgo.icu</code>
+                                用于分析论文并生成结构化配图 Prompt。
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>OPENAI_IMAGE_MODEL</Label>
+                            <Input
+                                type="text"
+                                placeholder="gpt-image-2"
+                                disabled
+                                value="gpt-image-2"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                用于文生图和图生图编辑。
                             </p>
                         </div>
                     </div>
                 </CardContent>
                 <CardFooter className="border-t bg-muted/40 p-4">
                     <div className="text-xs text-muted-foreground">
-                        💡 提示：修改 .env 文件后，请运行 <code className="font-mono bg-muted px-1.5 py-0.5 rounded">uvicorn app.main:app --reload</code> 重启后端。
+                        提示：修改环境变量或 .env 文件后，请运行 <code className="font-mono bg-muted px-1.5 py-0.5 rounded">uvicorn app.main:app --reload</code> 重启后端。
                     </div>
                 </CardFooter>
             </Card>
