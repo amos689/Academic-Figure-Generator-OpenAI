@@ -124,7 +124,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 OPENAI_TEXT_MODEL=gpt-5.5
-OPENAI_TEXT_REASONING_EFFORT=medium
+OPENAI_TEXT_REASONING_EFFORT=high
 OPENAI_IMAGE_MODEL=gpt-image-2
 OPENAI_IMAGE_QUALITY=high
 ```
@@ -215,7 +215,7 @@ FastAPI 后端 (localhost:8000)
 | `OPENAI_API_KEY` | 是 | — | OpenAI API Key，用于 Prompt 和图片生成 |
 | `OPENAI_API_BASE` | 否 | `https://api.openai.com/v1` | OpenAI API 地址 |
 | `OPENAI_TEXT_MODEL` | 否 | `gpt-5.5` | Prompt 生成模型 |
-| `OPENAI_TEXT_REASONING_EFFORT` | 否 | `medium` | Prompt 生成推理强度 |
+| `OPENAI_TEXT_REASONING_EFFORT` | 否 | `high` | Prompt 生成推理强度 |
 | `OPENAI_TEXT_MAX_OUTPUT_TOKENS` | 否 | `12000` | Prompt 生成最大输出 token |
 | `OPENAI_IMAGE_MODEL` | 否 | `gpt-image-2` | 图片生成/编辑模型 |
 | `OPENAI_IMAGE_QUALITY` | 否 | `high` | 图片质量 |

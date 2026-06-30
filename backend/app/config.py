@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     OPENAI_TEXT_MODEL: str = "gpt-5.5"
-    OPENAI_TEXT_REASONING_EFFORT: str = "medium"
+    OPENAI_TEXT_REASONING_EFFORT: str = "high"
     OPENAI_TEXT_MAX_OUTPUT_TOKENS: int = 12000
     OPENAI_IMAGE_MODEL: str = "gpt-image-2"
     OPENAI_IMAGE_QUALITY: str = "high"
