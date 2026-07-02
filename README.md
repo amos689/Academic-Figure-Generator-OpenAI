@@ -305,7 +305,7 @@ npm run lint    # ESLint 检查
 
 ## 致谢
 
-本项目基于原项目 [amos689/academic-figure-generator](https://github.com/amos689/academic-figure-generator) 继续开发。感谢原作者在项目设计、代码实现与开源工作中的所有贡献。
+本项目基于原项目 [LigphiDonk/academic-figure-generator](https://github.com/LigphiDonk/academic-figure-generator) 继续开发。感谢原作者在项目设计、代码实现与开源工作中的所有贡献。
 
 ## 许可证
 
