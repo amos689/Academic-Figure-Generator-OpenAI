@@ -106,6 +106,8 @@ class OpenAIPromptService:
         start_time = time.monotonic()
         try:
             response_text = await asyncio.to_thread(self._create_response, user_message)
+        except ExternalAPIException:
+            raise
         except Exception as exc:
             duration_ms = int((time.monotonic() - start_time) * 1000)
             logger.error("OpenAI prompt generation failed after %d ms: %s", duration_ms, exc)
@@ -141,6 +143,16 @@ class OpenAIPromptService:
                 }
             },
         )
+        if response.status == "incomplete":
+            reason = getattr(response.incomplete_details, "reason", "unknown")
+            if reason == "max_output_tokens":
+                raise ExternalAPIException(
+                    "OpenAI",
+                    "Prompt generation reached OPENAI_TEXT_MAX_OUTPUT_TOKENS. "
+                    "Increase this budget, request fewer figures, or lower "
+                    "OPENAI_TEXT_REASONING_EFFORT and try again.",
+                )
+            raise ExternalAPIException("OpenAI", f"Incomplete prompt generation: {reason}")
         return self._extract_response_text(response)
 
     def _build_instructions(self) -> str:

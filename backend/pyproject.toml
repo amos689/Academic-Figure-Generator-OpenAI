@@ -23,7 +23,7 @@ dependencies = [
     # SSE
     "sse-starlette>=2.1.0",
     # OpenAI API
-    "openai>=2.0.0",
+    "openai>=3.23.0",
 ]
 
 [project.optional-dependencies]

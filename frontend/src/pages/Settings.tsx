@@ -37,27 +37,27 @@ export function Settings() {
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label>OPENAI_TEXT_MODEL</Label>
+                            <Label>OPENAI_TEXT_MODEL（默认）</Label>
                             <Input
                                 type="text"
-                                placeholder="gpt-5.5"
+                                placeholder="gpt-6-astra"
                                 disabled
-                                value="gpt-5.5"
+                                value="gpt-6-astra"
                             />
                             <p className="text-xs text-muted-foreground">
-                                用于分析论文并生成结构化配图 Prompt。
+                                用于分析论文并生成结构化配图 Prompt，默认推理强度为 max。
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label>OPENAI_IMAGE_MODEL</Label>
+                            <Label>OPENAI_IMAGE_MODEL（默认）</Label>
                             <Input
                                 type="text"
-                                placeholder="gpt-image-2"
+                                placeholder="gpt-image-2.5-sunburst"
                                 disabled
-                                value="gpt-image-2"
+                                value="gpt-image-2.5-sunburst"
                             />
                             <p className="text-xs text-muted-foreground">
-                                用于文生图和图生图编辑。
+                                用于文生图和图生图编辑，默认图片质量为 max。
                             </p>
                         </div>
                     </div>

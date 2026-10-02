@@ -25,3 +25,6 @@ backend/data/
 
 # Logs
 *.log
+
+# Local agent sessions and runtime state
+**/.omc/

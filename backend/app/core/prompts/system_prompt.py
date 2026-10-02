@@ -9,7 +9,7 @@ Usage:
     from app.core.prompts.system_prompt import ACADEMIC_FIGURE_SYSTEM_PROMPT
 
     payload = {
-        "model": "gpt-5.5",
+        "model": "gpt-6-astra",
         "instructions": ACADEMIC_FIGURE_SYSTEM_PROMPT,
         "input": user_prompt,
         ...

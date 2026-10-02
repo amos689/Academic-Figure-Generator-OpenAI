@@ -59,8 +59,10 @@ AI 驱动的学术论文配图生成工具（个人本地版）。上传论文 �
 | 前端 | React 19 · TypeScript · Vite · Tailwind CSS · Radix UI |
 | 数据库 | SQLite (自动创建，零配置) |
 | 存储 | 本地文件系统 (`backend/data/`) |
-| AI (Prompt) | OpenAI Responses API (`gpt-5.5` 默认) |
-| AI (配图) | OpenAI Images API (`gpt-image-2` 默认) |
+| AI (Prompt) | OpenAI Responses API (`gpt-6-astra` 默认，推理强度 `max`) |
+| AI (配图) | OpenAI Images API (`gpt-image-2.5-sunburst` 默认，质量 `max`) |
+
+模型配置于 **2026-10-02** 根据 OpenAI 官方文档核对。文本采用旗舰 [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)，图片采用侧重精确生成与编辑的 [GPT Image 2.5 Sunburst](https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst)。这是一组明确的默认模型 ID，不会自动切换到未来的新模型；环境变量可以覆盖这些默认值。
 
 ## 项目结构
 
@@ -106,8 +108,8 @@ academic-figure-generator/
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/amos689/academic-figure-generator.git
-cd academic-figure-generator
+git clone https://github.com/amos689/Academic-Figure-Generator-OpenAI.git
+cd Academic-Figure-Generator-OpenAI
 ```
 
 ### 2. 配置环境变量
@@ -123,14 +125,23 @@ export OPENAI_API_KEY="your-openai-api-key"
 ```bash
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_TEXT_MODEL=gpt-5.5
-OPENAI_TEXT_REASONING_EFFORT=high
-OPENAI_IMAGE_MODEL=gpt-image-2
-OPENAI_IMAGE_QUALITY=high
+OPENAI_TEXT_MODEL=gpt-6-astra
+OPENAI_TEXT_REASONING_EFFORT=max
+OPENAI_TEXT_MAX_OUTPUT_TOKENS=32768
+OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst
+OPENAI_IMAGE_QUALITY=max
 ```
 
 密钥读取优先级：系统环境变量 → 本地 `.env` → `backend/app/config.py` 中的默认空位。
 开源提交前请勿提交任何真实 API key。
+
+**从旧版本升级：** 如果已有系统环境变量或 `.env` 指定了旧模型、推理强度、输出预算或图片质量，请将这些配置同步更新为上面的值，或删除对应覆盖项以使用代码默认值，然后重启后端。升级代码不会覆盖用户显式配置，也不需要修改数据库或重新生成历史图片。
+
+在已激活的后端虚拟环境中重新执行 `pip install -e .`（工作目录为 `backend/`），安装本次升级要求的 `openai>=3.23.0`。
+
+默认设置优先考虑生成质量。GPT-6 Astra 的推理强度和 GPT Image 2.5 的图片质量均使用当前支持的最高档 `max`，可能增加耗时及费用；可分别改为 `high` 降低开销。`OPENAI_TEXT_MAX_OUTPUT_TOKENS` 同时限制推理和最终 JSON 输出，并非质量档位；默认 `32768` 为长提示词预留空间。如提示预算耗尽，可提高此值、减少一次生成的配图数量或降低推理强度。Prompt 生成请求会等待后端返回，不受前端通用两分钟超时限制。
+
+图片仍可选择 1K / 2K / 4K 和不同长宽比，默认 2K。实际尺寸由面积档位和比例计算；两边均为 16 的倍数，最长边不超过 3840，长短边比例不超过 3:1，总像素在 655,360 至 8,294,400 之间。超过 `2560x1440` 的尺寸属于官方标注的实验性范围，详见 [图片生成参数](https://developers.openai.com/api/docs/guides/image-generation#size-and-quality-options)。切换回 GPT Image 2 时，请同时将 `OPENAI_IMAGE_QUALITY` 设为 `high`，旧模型不支持 `xhigh` / `max`。
 
 ### 3. 启动后端
 
@@ -214,11 +225,11 @@ FastAPI 后端 (localhost:8000)
 |------|------|--------|------|
 | `OPENAI_API_KEY` | 是 | — | OpenAI API Key，用于 Prompt 和图片生成 |
 | `OPENAI_API_BASE` | 否 | `https://api.openai.com/v1` | OpenAI API 地址 |
-| `OPENAI_TEXT_MODEL` | 否 | `gpt-5.5` | Prompt 生成模型 |
-| `OPENAI_TEXT_REASONING_EFFORT` | 否 | `high` | Prompt 生成推理强度 |
-| `OPENAI_TEXT_MAX_OUTPUT_TOKENS` | 否 | `12000` | Prompt 生成最大输出 token |
-| `OPENAI_IMAGE_MODEL` | 否 | `gpt-image-2` | 图片生成/编辑模型 |
-| `OPENAI_IMAGE_QUALITY` | 否 | `high` | 图片质量 |
+| `OPENAI_TEXT_MODEL` | 否 | `gpt-6-astra` | Prompt 生成模型 |
+| `OPENAI_TEXT_REASONING_EFFORT` | 否 | `max` | Astra 支持 `low` / `medium` / `high` / `xhigh` / `max` |
+| `OPENAI_TEXT_MAX_OUTPUT_TOKENS` | 否 | `32768` | 推理和最终输出共享的 token 上限；Astra 最大支持 128,000 |
+| `OPENAI_IMAGE_MODEL` | 否 | `gpt-image-2.5-sunburst` | 图片生成/编辑模型；可选 `gpt-image-2.5-flare` 侧重速度 |
+| `OPENAI_IMAGE_QUALITY` | 否 | `max` | Image 2.5 支持 `low` / `medium` / `high` / `xhigh` / `max` / `auto` |
 | `DATABASE_PATH` | 否 | `./data/app.db` | SQLite 数据库路径 |
 | `DATA_DIR` | 否 | `./data` | 数据存储目录 |
 | `DEBUG` | 否 | `true` | 调试模式 (启用 API 文档) |
@@ -243,17 +254,17 @@ FastAPI 后端 (localhost:8000)
 #### 方式 1：使用 npx skills 一键安装（推荐）
 
 ```bash
-npx skills add amos689/academic-figure-generator
+npx skills add amos689/Academic-Figure-Generator-OpenAI
 ```
 
 #### 方式 2：手动安装
 
 ```bash
-git clone https://github.com/amos689/academic-figure-generator.git
+git clone https://github.com/amos689/Academic-Figure-Generator-OpenAI.git
 
 # Codex
-cp -r academic-figure-generator/academic-figure-prompt ~/.codex/skills/
-cp -r academic-figure-generator/academic-figure-prompt-pastel ~/.codex/skills/
+cp -r Academic-Figure-Generator-OpenAI/academic-figure-prompt ~/.codex/skills/
+cp -r Academic-Figure-Generator-OpenAI/academic-figure-prompt-pastel ~/.codex/skills/
 ```
 
 ### 使用方法

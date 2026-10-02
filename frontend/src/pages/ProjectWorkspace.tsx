@@ -398,7 +398,8 @@ export function ProjectWorkspace() {
                 template_mode: templateMode,
             };
 
-            await api.post(`/projects/${id}/prompts/generate`, payload);
+            // Reasoning can exceed the shared two-minute HTTP timeout.
+            await api.post(`/projects/${id}/prompts/generate`, payload, { timeout: 0 });
 
             // Poll until new prompts appear
             let newPrompts: any[] = [];

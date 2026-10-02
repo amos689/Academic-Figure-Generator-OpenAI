@@ -54,7 +54,8 @@ def test_generate_image_uses_openai_generation(monkeypatch):
     assert result["width"] % 16 == 0
     assert result["height"] % 16 == 0
     generate_call = [kwargs for name, kwargs in calls if name == "generate"][0]
-    assert generate_call["model"] == "gpt-image-2"
+    assert generate_call["model"] == "gpt-image-2.5-sunburst"
+    assert generate_call["quality"] == "max"
     assert generate_call["prompt"] == "draw an academic diagram"
     assert "x" in generate_call["size"]
 
@@ -71,7 +72,8 @@ def test_edit_image_uses_openai_edit(monkeypatch):
     )
 
     edit_call = [kwargs for name, kwargs in calls if name == "edit"][0]
-    assert edit_call["model"] == "gpt-image-2"
+    assert edit_call["model"] == "gpt-image-2.5-sunburst"
+    assert edit_call["quality"] == "max"
     assert edit_call["image"] == ("reference.png", b"reference", "image/png")
     assert "make labels larger" in edit_call["prompt"]
     assert "original prompt" in edit_call["prompt"]
@@ -88,12 +90,12 @@ def test_missing_openai_key_fails(monkeypatch):
 
 
 @pytest.mark.parametrize("resolution", ["1K", "2K", "4K"])
-@pytest.mark.parametrize("aspect_ratio", ["1:1", "16:9", "9:16", "21:9"])
+@pytest.mark.parametrize("aspect_ratio", list(ImageService.ASPECT_RATIO_MAP))
 def test_openai_dimensions_respect_constraints(resolution: str, aspect_ratio: str):
     width, height = ImageService._calculate_dimensions(resolution, aspect_ratio)
 
     assert width % 16 == 0
     assert height % 16 == 0
     assert max(width, height) <= 3840
-    assert width * height <= 8_294_400
+    assert 655_360 <= width * height <= 8_294_400
     assert max(width / height, height / width) <= 3.0
