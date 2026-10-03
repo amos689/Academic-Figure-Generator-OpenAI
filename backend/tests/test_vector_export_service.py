@@ -280,8 +280,26 @@ def test_render_adapter_with_application_palette(graph, format):
     assert isinstance(result["data"], bytes)
     if format == "svg":
         root = ET.fromstring(result["data"])
-        assert root.find(".//svg:g[@id='node-input']/svg:rect", NS).attrib["fill"] == "#ddeeff"
+        assert root.find(".//svg:g[@id='node-input']/svg:rect", NS).attrib["fill"] == "#fafdff"
         assert root.find(".//svg:g[@id='edge-e1']/svg:path", NS).attrib["stroke"] == "#123456"
+
+
+@pytest.mark.parametrize("style", ["classic", "pastel"])
+def test_preset_accents_become_readable_node_tints(graph, style):
+    from app.core.prompts.color_schemes import PRESET_COLOR_SCHEMES
+
+    def luminance(color):
+        channels = [int(color[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+        linear = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in channels]
+        return sum(v * weight for v, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+    for colors in PRESET_COLOR_SCHEMES.values():
+        result = VectorExportService().render(graph, "svg", 1600, style, colors)
+        root = ET.fromstring(result["data"])
+        for role in ("input", "encoder", "output"):
+            fill = root.find(f".//svg:g[@id='node-{role}']/svg:rect", NS).attrib["fill"]
+            contrast = (luminance(fill) + 0.05) / (luminance(colors["text"]) + 0.05)
+            assert contrast >= 4.5
 
 
 @pytest.mark.parametrize(

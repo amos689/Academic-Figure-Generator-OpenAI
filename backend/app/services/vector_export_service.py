@@ -100,6 +100,20 @@ def _resolve_palette(style_preset: StylePreset, colors: dict[str, str] | None) -
         overrides["group_stroke"] = overrides["stroke"]
     if "fill" in colors:
         overrides["note_fill"] = overrides["background"]
+    background = overrides.get("background", palette.background)
+    strength = 0.14 if style_preset == "pastel" else 0.22
+    # Accent colors describe semantic roles, not opaque backgrounds behind dark labels.
+    for role in ("input_fill", "process_fill", "output_fill"):
+        if role in overrides:
+            accent = overrides[role]
+            components = [
+                round(
+                    int(accent[i : i + 2], 16) * strength
+                    + int(background[i : i + 2], 16) * (1 - strength)
+                )
+                for i in (1, 3, 5)
+            ]
+            overrides[role] = "#" + "".join(f"{value:02x}" for value in components)
     return replace(palette, **overrides)
 
 
