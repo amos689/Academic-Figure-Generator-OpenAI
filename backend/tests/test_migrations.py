@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.core.database import backup_before_upgrade, migrate_database
+from app.core.database import backup_before_upgrade, migrate_database, migration_config
 
 
 @pytest.mark.asyncio
@@ -31,8 +31,15 @@ async def test_fresh_database_and_idempotent_upgrade(tmp_path):
 async def test_unversioned_database_is_preserved_and_backed_up(tmp_path):
     path = tmp_path / "app.db"
     engine = create_async_engine(f"sqlite+aiosqlite:///{path}")
-    await migrate_database(engine, str(path))
+    from alembic import command
+
+    def legacy(connection):
+        config = migration_config()
+        config.attributes["connection"] = connection
+        command.upgrade(config, "0001_legacy")
+
     async with engine.begin() as connection:
+        await connection.run_sync(legacy)
         await connection.execute(
             text(
                 "INSERT INTO projects (id,name,color_scheme,status) VALUES ('legacy','Keep me','okabe-ito','active')"
