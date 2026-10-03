@@ -28,6 +28,7 @@ def _figure(prompt: str | None = None) -> dict:
         "prompt": prompt or ("A detailed academic figure prompt. " * 30),
         "source_section_titles": ["Method"],
         "rationale": "Best summarizes the proposed method.",
+        "figure_spec": None,
     }
 
 
@@ -115,3 +116,41 @@ def test_empty_figures_response_fails():
         service._parse_figures_response(json.dumps({"figures": []}))
 
     assert "No valid figure prompts" in exc_info.value.detail
+
+
+def test_schema_checks_all_fields_and_pastel_skill():
+    service = OpenAIPromptService(style_preset="pastel")
+    assert "pastel" in service.skill_content.lower()
+    assert "untrusted source data" in service._build_instructions()
+    invalid = _figure()
+    invalid["suggested_aspect_ratio"] = "500:1"
+    with pytest.raises(ExternalAPIException):
+        service._parse_figures_response(json.dumps({"figures": [invalid]}))
+
+
+async def test_generated_spec_evidence_must_exist(monkeypatch):
+    figure = _figure()
+    figure["figure_spec"] = {
+        "version": 1,
+        "title": "Framework",
+        "nodes": [
+            {
+                "id": "input",
+                "label": "Input",
+                "sources": [{"section_index": 0, "quote": "Invented evidence"}],
+            }
+        ],
+        "edges": [],
+        "groups": [],
+    }
+    service = OpenAIPromptService()
+    monkeypatch.setattr(service, "_create_response", lambda _: json.dumps({"figures": [figure]}))
+    with pytest.raises(ExternalAPIException, match="absent from supplied context"):
+        await service.generate_figure_prompts(
+            [{"title": "Methods", "content": "Real evidence only."}], {}
+        )
+    figure["figure_spec"]["nodes"][0]["sources"][0]["quote"] = "Real evidence only."
+    result = await service.generate_figure_prompts(
+        [{"title": "Methods", "content": "Real evidence only."}], {}
+    )
+    assert result["generation_metadata"]["context_coverage"]["coverage_ratio"] == 1
