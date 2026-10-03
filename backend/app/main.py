@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import setup_middleware
+from app.core.privacy import configure_private_logging
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
     settings = get_settings()
 
+    configure_private_logging()
     app = FastAPI(
         title="Academic Figure Generator API",
         version="0.2.0",

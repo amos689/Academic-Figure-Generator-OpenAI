@@ -6,10 +6,25 @@ import time
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import JSONResponse
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+class LocalMutationMiddleware(BaseHTTPMiddleware):
+    """CORS alone does not stop another website submitting a local multipart form."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = request.headers.get("origin")
+            allowed = set(get_settings().CORS_ORIGINS)
+            allowed.add(f"{request.url.scheme}://{request.url.netloc}")
+            if origin is not None and origin not in allowed:
+                return JSONResponse({"detail": "Untrusted request origin"}, status_code=403)
+        return await call_next(request)
 
 
 def setup_cors(app: FastAPI) -> None:
@@ -45,3 +60,5 @@ def setup_middleware(app: FastAPI) -> None:
     """Register all middleware on the application."""
     setup_cors(app)
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(LocalMutationMiddleware)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=get_settings().ALLOWED_HOSTS)

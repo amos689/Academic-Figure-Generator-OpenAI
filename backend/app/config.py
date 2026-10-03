@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "[::1]", "testserver"]
 
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 50
@@ -58,7 +60,13 @@ class Settings(BaseSettings):
     @field_validator("OPENAI_API_BASE")
     @classmethod
     def _normalize_openai_api_base(cls, value: str) -> str:
-        return (value or "https://api.openai.com/v1").rstrip("/")
+        value = (value or "https://api.openai.com/v1").rstrip("/")
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("OPENAI_API_BASE must be an HTTP(S) URL")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("OPENAI_API_BASE must not contain credentials, query, or fragment")
+        return value
 
     model_config = SettingsConfigDict(
         env_file=(str(_PROJECT_ROOT / ".env"), str(_BACKEND_ROOT / ".env")),

@@ -1,11 +1,11 @@
 """Custom application exceptions and FastAPI exception handlers."""
 
-import traceback
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.config import get_settings
+from app.core.privacy import redact_secrets
 
 
 class AppException(Exception):
@@ -63,7 +63,7 @@ def _app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         status_code=exc.status_code,
         content={
             "error": exc.error_code,
-            "detail": exc.detail,
+            "detail": redact_secrets(exc.detail),
         },
     )
 
@@ -73,16 +73,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppException, _app_exception_handler)  # type: ignore[arg-type]
 
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        settings = get_settings()
-        if settings.DEBUG:
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "INTERNAL_SERVER_ERROR",
-                    "detail": f"{type(exc).__name__}: {exc}",
-                    "traceback": traceback.format_exc(),
-                },
-            )
+        logging.getLogger(__name__).error("Unhandled request error: %s", type(exc).__name__)
         return JSONResponse(
             status_code=500,
             content={
