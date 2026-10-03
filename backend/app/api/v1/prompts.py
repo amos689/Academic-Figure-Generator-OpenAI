@@ -15,6 +15,8 @@ from app.models.prompt import Prompt
 from app.schemas.prompt import (
     PromptGenerateRequest,
     PromptResponse,
+    PromptRestore,
+    PromptRevisionResponse,
     PromptStatusResponse,
     PromptUpdate,
 )
@@ -35,23 +37,7 @@ async def _get_project(project_id: str, db: AsyncSession) -> Project:
 
 
 def _prompt_to_response(p: Prompt) -> PromptResponse:
-    return PromptResponse(
-        id=p.id,
-        project_id=p.project_id,
-        document_id=p.document_id,
-        figure_number=p.figure_number,
-        title=p.title,
-        original_prompt=p.original_prompt,
-        edited_prompt=p.edited_prompt,
-        active_prompt=p.active_prompt,
-        suggested_figure_type=p.suggested_figure_type,
-        suggested_aspect_ratio=p.suggested_aspect_ratio,
-        source_sections=p.source_sections,
-        claude_model=p.claude_model,
-        generation_status=p.generation_status,
-        created_at=p.created_at,
-        updated_at=p.updated_at,
-    )
+    return PromptResponse.model_validate(p)
 
 
 @router.post(
@@ -147,9 +133,7 @@ async def list_project_prompts(
 ):
     await _get_project(project_id, db)
     result = await db.execute(
-        select(Prompt)
-        .where(Prompt.project_id == project_id)
-        .order_by(Prompt.figure_number.asc())
+        select(Prompt).where(Prompt.project_id == project_id).order_by(Prompt.figure_number.asc())
     )
     return [_prompt_to_response(p) for p in result.scalars().all()]
 
@@ -172,16 +156,24 @@ async def update_prompt(
     data: PromptUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
-    prompt: Prompt | None = result.scalar_one_or_none()
-    if prompt is None:
-        raise NotFoundException("Prompt not found")
-
-    prompt.edited_prompt = data.edited_prompt
-    db.add(prompt)
-    await db.flush()
-    await db.refresh(prompt)
+    prompt = await PromptService(db).update_prompt(
+        prompt_id,
+        data.edited_prompt,
+        expected_revision=data.expected_revision,
+        figure_spec=data.figure_spec.model_dump() if data.figure_spec else None,
+        spec_supplied="figure_spec" in data.model_fields_set,
+    )
     return _prompt_to_response(prompt)
+
+
+@router.get("/prompts/{prompt_id}/revisions", response_model=list[PromptRevisionResponse])
+async def list_revisions(prompt_id: str, db: AsyncSession = Depends(get_db)):
+    return await PromptService(db).revisions(prompt_id)
+
+
+@router.post("/prompts/{prompt_id}/restore", response_model=PromptResponse)
+async def restore_prompt(prompt_id: str, data: PromptRestore, db: AsyncSession = Depends(get_db)):
+    return await PromptService(db).restore(prompt_id, data.revision, data.expected_revision)
 
 
 @router.get("/prompts/{prompt_id}/status", response_model=PromptStatusResponse)
