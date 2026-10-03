@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root: backend/
@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 50
+    MAX_CONCURRENT_JOBS: int = Field(default=2, ge=1, le=8)
 
     @field_validator("API_V1_PREFIX")
     @classmethod

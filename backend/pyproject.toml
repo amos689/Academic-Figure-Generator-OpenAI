@@ -14,6 +14,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.36",
     "aiosqlite>=0.20.0",
     "alembic>=1.14.0",
+    "filelock>=3.16.0",
     # HTTP client
     "httpx>=0.28.0",
     # Document parsing
