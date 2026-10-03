@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -157,28 +158,32 @@ class OpenAIPromptService:
         """Synchronous SDK call split out for easy testing/mocking."""
         from openai import OpenAI  # noqa: PLC0415
 
-        client = OpenAI(api_key=self.api_key, base_url=self.api_base, timeout=900, max_retries=0)
-        response = client.responses.create(
-            model=self.model,
-            instructions=instructions or self._build_instructions(),
-            input=user_message,
-            reasoning={"effort": self.reasoning_effort},
-            max_output_tokens=self.max_output_tokens,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "academic_figure_prompt_batch",
-                    "schema": schema or self.RESPONSE_SCHEMA,
-                    "strict": True,
-                }
-            },
-            store=False,
-        )
+        with closing(
+            OpenAI(api_key=self.api_key, base_url=self.api_base, timeout=900, max_retries=0)
+        ) as client:
+            response = client.responses.create(
+                model=self.model,
+                instructions=instructions or self._build_instructions(),
+                input=user_message,
+                reasoning={"effort": self.reasoning_effort},
+                max_output_tokens=self.max_output_tokens,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "academic_figure_prompt_batch",
+                        "schema": schema or self.RESPONSE_SCHEMA,
+                        "strict": True,
+                    }
+                },
+                store=False,
+                service_tier="default",
+            )
         usage = getattr(response, "usage", None)
         self.response_metadata = {
             "model": getattr(response, "model", None) or self.model,
             "usage": usage.model_dump() if hasattr(usage, "model_dump") else usage,
             "request_id": getattr(response, "_request_id", None),
+            "service_tier": getattr(response, "service_tier", None) or "default",
         }
         if response.status == "incomplete":
             reason = getattr(response.incomplete_details, "reason", "unknown")

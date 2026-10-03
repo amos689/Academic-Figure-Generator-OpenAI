@@ -44,6 +44,9 @@ def _install_fake_openai(monkeypatch, calls: list[tuple[str, dict]]):
             calls.append(("client", kwargs))
             self.images = FakeImages()
 
+        def close(self):
+            calls.append(("closed", {}))
+
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
 
 
@@ -66,6 +69,7 @@ def test_generate_image_uses_openai_generation(monkeypatch):
     assert generate_call["quality"] == "max"
     assert generate_call["prompt"] == "draw an academic diagram"
     assert "x" in generate_call["size"]
+    assert calls[-1] == ("closed", {})
 
 
 def test_edit_image_uses_openai_edit(monkeypatch):
@@ -85,6 +89,7 @@ def test_edit_image_uses_openai_edit(monkeypatch):
     assert edit_call["image"] == ("reference.png", _png(), "image/png")
     assert "make labels larger" in edit_call["prompt"]
     assert "original prompt" in edit_call["prompt"]
+    assert calls[-1] == ("closed", {})
 
 
 def test_mask_and_actual_dimensions_are_recorded(monkeypatch):

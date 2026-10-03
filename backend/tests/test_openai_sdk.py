@@ -68,16 +68,18 @@ def test_sdk_serializes_latest_models_and_max_quality(monkeypatch):
             },
         )
 
+    sdk_client = openai.OpenAI
+    clients = []
+
+    def make_client(**kwargs):
+        client = sdk_client(
+            **kwargs, http_client=httpx2.Client(transport=httpx2.MockTransport(handle))
+        )
+        clients.append(client)
+        return client
+
     try:
-        with (
-            openai.OpenAI(
-                api_key="test-key",
-                base_url="https://api.openai.com/v1",
-                http_client=httpx2.Client(transport=httpx2.MockTransport(handle)),
-                max_retries=0,
-            ) as client,
-            patch("openai.OpenAI", return_value=client),
-        ):
+        with patch("openai.OpenAI", side_effect=make_client):
             assert OpenAIPromptService()._create_response("academic diagram") == '{"figures": []}'
             images = ImageService()
             assert images.generate_image("academic diagram")["image_base64"] == image_base64
@@ -92,6 +94,8 @@ def test_sdk_serializes_latest_models_and_max_quality(monkeypatch):
     finally:
         get_settings.cache_clear()
 
+    assert len(clients) == 3 and all(client.is_closed() for client in clients)
+
     assert [request.url.path for request in requests] == [
         "/v1/responses",
         "/v1/images/generations",
@@ -100,6 +104,7 @@ def test_sdk_serializes_latest_models_and_max_quality(monkeypatch):
     prompt_body = json.loads(requests[0].content)
     assert prompt_body["model"] == "gpt-6-astra"
     assert prompt_body["reasoning"]["effort"] == "max"
+    assert prompt_body["service_tier"] == "default"
     assert prompt_body["text"]["format"]["strict"] is True
     generation_body = json.loads(requests[1].content)
     assert generation_body["model"] == "gpt-image-2.5-sunburst"

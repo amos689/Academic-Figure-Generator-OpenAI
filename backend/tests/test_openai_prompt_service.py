@@ -47,6 +47,9 @@ async def test_generate_figure_prompts_uses_responses_structured_outputs(monkeyp
         def __init__(self, **kwargs):
             self.responses = FakeResponses()
 
+        def close(self):
+            calls.append({"closed": True})
+
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
 
     service = OpenAIPromptService()
@@ -63,6 +66,8 @@ async def test_generate_figure_prompts_uses_responses_structured_outputs(monkeyp
     assert call["model"] == "gpt-6-astra"
     assert call["reasoning"] == {"effort": "max"}
     assert call["max_output_tokens"] == 32768
+    assert call["service_tier"] == "default"
+    assert calls[-1] == {"closed": True}
     assert call["text"]["format"]["type"] == "json_schema"
     assert call["text"]["format"]["strict"] is True
     assert not {"temperature", "top_p", "top_logprobs"}.intersection(call)
@@ -88,6 +93,9 @@ async def test_incomplete_response_is_not_accepted(monkeypatch, reason, expected
     class FakeOpenAI:
         def __init__(self, **kwargs):
             self.responses = FakeResponses()
+
+        def close(self):
+            pass
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
 

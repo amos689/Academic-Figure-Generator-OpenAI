@@ -6,6 +6,7 @@ import base64
 import logging
 import math
 import time
+from contextlib import closing
 from typing import Any
 
 from app.config import get_settings
@@ -152,17 +153,17 @@ class ImageService:
     def _generate_image(self, prompt: str, size: str, timeout: int) -> Any:
         from openai import OpenAI  # noqa: PLC0415
 
-        client = OpenAI(
+        with closing(OpenAI(
             api_key=self.api_key, base_url=self.api_base, timeout=timeout, max_retries=0
-        )
-        return client.images.generate(
-            model=self.model,
-            prompt=prompt,
-            size=size,
-            quality=self.quality,
-            n=1,
-            output_format="png",
-        )
+        )) as client:
+            return client.images.generate(
+                model=self.model,
+                prompt=prompt,
+                size=size,
+                quality=self.quality,
+                n=1,
+                output_format="png",
+            )
 
     def _edit_image(
         self,
@@ -191,19 +192,19 @@ class ImageService:
             if mask_image_bytes is not None
             else {}
         )
-        client = OpenAI(
+        with closing(OpenAI(
             api_key=self.api_key, base_url=self.api_base, timeout=timeout, max_retries=0
-        )
-        return client.images.edit(
-            model=self.model,
-            image=(f"reference.{extension}", reference_image_bytes, image_info["mime_type"]),
-            prompt=combined_prompt,
-            size=size,
-            quality=self.quality,
-            n=1,
-            output_format="png",
-            **extra,
-        )
+        )) as client:
+            return client.images.edit(
+                model=self.model,
+                image=(f"reference.{extension}", reference_image_bytes, image_info["mime_type"]),
+                prompt=combined_prompt,
+                size=size,
+                quality=self.quality,
+                n=1,
+                output_format="png",
+                **extra,
+            )
 
     @classmethod
     def _calculate_dimensions(cls, resolution: str, aspect_ratio: str) -> tuple[int, int]:
