@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AppException, NotFoundException
 from app.core.privacy import public_error
+from app.models.document import Document
+from app.models.image import Image
 from app.models.job import Job
 
 logger = logging.getLogger(__name__)
@@ -121,6 +123,29 @@ class JobRunner:
                     "Application stopped during this attempt. Provider outcome may be unknown; "
                     "check usage before retrying.",
                 )
+            legacy_message = (
+                "This unfinished record predates durable jobs. No request was resubmitted; "
+                "check provider usage before starting another generation."
+            )
+            await db.execute(
+                update(Image)
+                .where(
+                    Image.job_id.is_(None),
+                    Image.generation_status.in_(["pending", "generating"]),
+                )
+                .values(generation_status="interrupted", generation_error=legacy_message)
+            )
+            await db.execute(
+                update(Document)
+                .where(
+                    Document.job_id.is_(None),
+                    Document.parse_status.in_(["pending", "parsing"]),
+                )
+                .values(
+                    parse_status="interrupted",
+                    parse_error="Document parsing did not finish before the upgrade. Re-upload it.",
+                )
+            )
             await db.commit()
 
     async def claim(self) -> Job | None:

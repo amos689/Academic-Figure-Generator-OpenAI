@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.exceptions import AppException
-from app.models import Job, Project
+from app.models import Document, Image, Job, Project
 from app.services.job_service import JobRunner, enqueue_job
 
 
@@ -67,6 +67,31 @@ async def test_recovery_never_resubmits_running_jobs(sessions):
         recovered = await db.get(Job, job.id)
         assert recovered.status == "interrupted"
         assert "unknown" in recovered.error
+
+
+async def test_recovery_marks_unfinished_legacy_resources_without_retry(sessions):
+    job, _ = await add_job(sessions)
+    async with sessions() as db:
+        db.add_all([
+            Image(id="legacy-image", project_id="project", generation_status="generating"),
+            Image(id="finished-image", project_id="project", generation_status="completed"),
+            Image(id="queued-image", project_id="project", job_id=job.id),
+            Document(
+                id="legacy-doc", project_id="project", original_filename="paper.txt",
+                file_type="txt", file_size_bytes=3, storage_path="uploads/paper.txt",
+                parse_status="parsing",
+            ),
+        ])
+        await db.commit()
+    runner = JobRunner(sessions)
+    await runner.recover_interrupted()
+    await runner.recover_interrupted()
+    async with sessions() as db:
+        assert (await db.get(Image, "legacy-image")).generation_status == "interrupted"
+        assert (await db.get(Document, "legacy-doc")).parse_status == "interrupted"
+        assert (await db.get(Image, "finished-image")).generation_status == "completed"
+        assert (await db.get(Image, "queued-image")).generation_status == "pending"
+        assert list(await db.scalars(select(Job.id))) == [job.id]
 
 
 async def test_worker_concurrency_is_bounded_and_failures_are_private(sessions):
