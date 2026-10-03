@@ -53,6 +53,7 @@ async def _enrich_response(project: Project, db: AsyncSession) -> ProjectRespons
         paper_field=project.paper_field,
         color_scheme=project.color_scheme,
         custom_colors=project.custom_colors,
+        style_preset=project.style_preset,
         status=project.status,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -73,6 +74,7 @@ async def create_project(
         paper_field=data.paper_field,
         color_scheme=data.color_scheme,
         custom_colors=data.custom_colors,
+        style_preset=data.style_preset,
     )
     db.add(project)
     await db.flush()
@@ -129,6 +131,8 @@ async def update_project(
         project.custom_colors = data.custom_colors
     if data.status is not None:
         project.status = data.status
+    if data.style_preset is not None:
+        project.style_preset = data.style_preset
 
     db.add(project)
     await db.flush()
