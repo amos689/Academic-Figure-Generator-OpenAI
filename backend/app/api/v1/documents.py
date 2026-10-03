@@ -1,116 +1,80 @@
-"""Document upload and retrieval endpoints — personal-use (no auth, local storage)."""
+"""Document storage and durable, nonblocking text extraction."""
 
-import logging
+import asyncio
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.access import require_project
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_db
 from app.models.document import Document
-from app.models.project import Project
 from app.schemas.document import DocumentResponse
+from app.services.document_service import DocumentService
+from app.services.job_service import enqueue_job
 from app.services.local_storage_service import LocalStorageService
+from app.services.upload_service import display_filename, read_upload
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="", tags=["Documents"])
-
-
-async def _get_project(project_id: str, db: AsyncSession) -> Project:
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project: Project | None = result.scalar_one_or_none()
-    if project is None or project.status == "deleted":
-        raise NotFoundException("Project not found")
-    return project
+router = APIRouter(tags=["Documents"])
 
 
 @router.get("/projects/{project_id}/documents", response_model=list[DocumentResponse])
-async def list_project_documents(
-    project_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    await _get_project(project_id, db)
-    result = await db.execute(
-        select(Document)
-        .where(Document.project_id == project_id)
-        .order_by(Document.created_at.desc())
+async def list_project_documents(project_id: str, db: AsyncSession = Depends(get_db)):
+    await require_project(db, project_id)
+    return list(
+        await db.scalars(
+            select(Document)
+            .where(Document.project_id == project_id)
+            .order_by(Document.created_at.desc())
+        )
     )
-    return [DocumentResponse.model_validate(d) for d in result.scalars().all()]
 
 
-@router.post(
-    "/projects/{project_id}/documents",
-    response_model=DocumentResponse,
-    status_code=201,
-)
-async def upload_document(
-    project_id: str,
-    file: UploadFile,
-    db: AsyncSession = Depends(get_db),
-):
-    """Upload a document to a project.
-
-    Accepts PDF, DOCX, or TXT files. The file is stored locally and parsed
-    synchronously (inline).
-    """
-    project = await _get_project(project_id, db)
-
-    contents = await file.read()
-    file_size = len(contents)
-    original_filename = file.filename or "unnamed"
-
-    # Validate
-    from app.services.document_service import DocumentService  # noqa: PLC0415
-
-    doc_service = DocumentService()
-    file_type = doc_service.validate_file(original_filename, contents, file_size)
-
-    # Save to local storage
+@router.post("/projects/{project_id}/documents", response_model=DocumentResponse, status_code=201)
+async def upload_document(project_id: str, file: UploadFile, db: AsyncSession = Depends(get_db)):
+    await require_project(db, project_id)
+    contents = await read_upload(file)
+    filename = display_filename(file.filename)
+    file_type = await asyncio.to_thread(
+        DocumentService().validate_file, filename, contents, len(contents)
+    )
+    document_id = str(uuid4())
     storage = LocalStorageService()
-    storage_path = storage.save_upload(f"{project.id}/{original_filename}", contents)
-
-    # Create DB record
-    document = Document(
-        project_id=project.id,
-        original_filename=original_filename,
-        file_type=file_type,
-        file_size_bytes=file_size,
-        storage_path=storage_path,
-        parse_status="parsing",
-    )
-    db.add(document)
-    await db.flush()
-    await db.refresh(document)
-
-    # Parse synchronously (no Celery)
+    path = storage.save_upload(f"{project_id}/{document_id}.{file_type}", contents)
     try:
-        parse_result = doc_service.parse(contents, file_type)
-        document.full_text = parse_result.get("full_text")
-        document.sections = parse_result.get("sections")
-        document.page_count = parse_result.get("page_count")
-        document.parse_status = "completed"
-        logger.info("Document %s parsed successfully: %d sections", document.id, len(document.sections or []))
-    except Exception as exc:
-        document.parse_status = "failed"
-        document.parse_error = str(exc)
-        logger.error("Document %s parsing failed: %s", document.id, exc)
-
-    db.add(document)
-    await db.flush()
-    await db.refresh(document)
-
-    return DocumentResponse.model_validate(document)
+        document = Document(
+            id=document_id,
+            project_id=project_id,
+            original_filename=filename,
+            file_type=file_type,
+            file_size_bytes=len(contents),
+            storage_path=path,
+            parse_status="pending",
+        )
+        db.add(document)
+        job, _ = await enqueue_job(
+            db,
+            project_id=project_id,
+            kind="document",
+            payload={"document_id": document_id},
+            resource_id=document_id,
+        )
+        document.job_id = job.id
+        await db.commit()
+        await db.refresh(document)
+    except Exception:
+        await db.rollback()
+        storage.delete_file(path)
+        raise
+    return document
 
 
 @router.get("/documents/{document_id}", response_model=DocumentResponse)
-async def get_document(
-    document_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Document).where(Document.id == document_id))
-    document: Document | None = result.scalar_one_or_none()
+async def get_document(document_id: str, db: AsyncSession = Depends(get_db)):
+    document = await db.get(Document, document_id)
     if document is None:
         raise NotFoundException("Document not found")
-    return DocumentResponse.model_validate(document)
+    await require_project(db, document.project_id)
+    return document

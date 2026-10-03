@@ -21,25 +21,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting up Academic Figure Generator API (personal-use)...")
 
     from app.core.database import migrate_database
-    from app.dependencies import _engine
+    from app.dependencies import _engine, get_async_session_factory
+    from app.services.job_handlers import register_handlers
+    from app.services.job_service import JobRunner
+    from filelock import FileLock
 
-    await migrate_database(_engine, get_settings().DATABASE_PATH)
-    logger.info("SQLite database migrations applied.")
-
-    # Seed preset color schemes
-    try:
-        await _seed_preset_color_schemes()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Preset color scheme seeding failed (continuing): %s", exc)
-
-    # Ensure data directories exist
     settings = get_settings()
-    data_dir = Path(settings.DATA_DIR)
-    (data_dir / "uploads").mkdir(parents=True, exist_ok=True)
-    (data_dir / "figures").mkdir(parents=True, exist_ok=True)
-
-    yield
-
+    Path(settings.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
+    worker_lock = FileLock(f"{settings.DATABASE_PATH}.worker.lock", timeout=0)
+    worker_lock.acquire()
+    runner = JobRunner(get_async_session_factory(), concurrency=settings.MAX_CONCURRENT_JOBS)
+    register_handlers(runner)
+    app.state.job_runner = runner
+    try:
+        await migrate_database(_engine, settings.DATABASE_PATH)
+        await _seed_preset_color_schemes()
+        await runner.start()
+        yield
+    finally:
+        await runner.stop()
+        await _engine.dispose()
+        worker_lock.release()
     logger.info("Shutting down Academic Figure Generator API...")
 
 
@@ -117,6 +119,7 @@ def _include_routers(app: FastAPI, prefix: str) -> None:
         ("app.api.v1.prompts", "router"),
         ("app.api.v1.images", "router"),
         ("app.api.v1.color_schemes", "router"),
+        ("app.api.v1.jobs", "router"),
     ]
 
     for module_path, attr in router_modules:

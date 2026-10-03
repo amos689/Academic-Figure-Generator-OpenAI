@@ -15,6 +15,10 @@ def redact_secrets(value: str) -> str:
 
 
 def public_error(exc: Exception) -> str:
+    from app.core.exceptions import AppException
+
+    if isinstance(exc, AppException):
+        return redact_secrets(exc.detail)
     status = getattr(exc, "status_code", None)
     if status in (401, 403):
         return "OpenAI access was denied. Check the configured key and model permissions."

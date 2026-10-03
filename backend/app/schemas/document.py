@@ -26,3 +26,4 @@ class DocumentResponse(BaseModel):
     parse_error: str | None
     ocr_markdown: str | None = None
     created_at: datetime
+    job_id: str | None = None
