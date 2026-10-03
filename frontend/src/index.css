@@ -89,6 +89,30 @@
 
   body {
     @apply bg-background text-foreground;
+    margin: 0;
+    min-width: 320px;
+    letter-spacing: 0;
+  }
+
+  select {
+    @apply h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
+    text-overflow: ellipsis;
+  }
+
+  input[type="checkbox"], input[type="radio"] {
+    @apply h-4 w-4 shrink-0 accent-primary;
+  }
+
+  input[type="range"] {
+    @apply h-8 w-full accent-primary;
+  }
+
+  button, a, summary, input, select, textarea {
+    @apply focus-visible:outline-primary;
+  }
+
+  [hidden] {
+    display: none !important;
   }
 
   /* Smooth transitions for interactive elements */
