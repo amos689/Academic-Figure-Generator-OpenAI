@@ -1,5 +1,6 @@
 """FastAPI application factory — personal-use version."""
 
+import importlib
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -124,18 +125,14 @@ def _include_routers(app: FastAPI, prefix: str) -> None:
         ("app.api.v1.color_schemes", "router"),
         ("app.api.v1.jobs", "router"),
         ("app.api.v1.exports", "router"),
+        ("app.api.v1.configuration", "router"),
     ]
 
     for module_path, attr in router_modules:
-        try:
-            import importlib  # noqa: PLC0415
-
-            module = importlib.import_module(module_path)
-            router = getattr(module, attr)
-            app.include_router(router, prefix=prefix)
-            logger.debug("Registered router: %s", module_path)
-        except (ImportError, AttributeError) as exc:
-            logger.warning("Skipping router %s: %s", module_path, exc)
+        module = importlib.import_module(module_path)
+        router = getattr(module, attr)
+        app.include_router(router, prefix=prefix)
+        logger.debug("Registered router: %s", module_path)
 
 
 app = create_app()
