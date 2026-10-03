@@ -1,271 +1,37 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import * as z from 'zod';
-import { format } from 'date-fns';
-import { FileText, Image as ImageIcon, MessageSquare, Trash2, Plus, RefreshCw, Folder } from 'lucide-react';
-
-import api from '../lib/api';
-import { useProjectStore } from '../store/projectStore';
-
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FileText, FolderOpen, Image, MessageSquare, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { workbenchApi } from '../lib/api';
+import { displayDate } from '../lib/workbench';
+import { useI18n } from '../lib/i18n';
+import { useAction } from '../hooks/useAction';
+import { useResource } from '../hooks/useResource';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
-import { Alert, AlertDescription } from '../components/ui/alert';
-
-const createProjectSchema = z.object({
-    name: z.string().trim().min(1, '请输入项目名称'),
-    description: z.string().trim().optional(),
-    paper_field: z.string().trim().optional(),
-});
-
-type CreateProjectValues = z.infer<typeof createProjectSchema>;
+import { Textarea } from '../components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Empty, ErrorNotice, Field, IconButton, Loading } from '../components/workbench/Common';
 
 export function Projects() {
-    const { projects, setProjects } = useProjectStore();
-    const [isLoading, setIsLoading] = useState(true);
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false); // Renamed from isDialogOpen
-    const [error, setError] = useState('');
-    const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CreateProjectValues, string>>>({});
-    const navigate = useNavigate();
-
-    // New state variables for manual form handling
-    const [newProjectName, setNewProjectName] = useState('');
-    const [newProjectDesc, setNewProjectDesc] = useState('');
-    const [newProjectField, setNewProjectField] = useState('计算机科学'); // Default value
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const fetchProjects = async () => {
-        try {
-            const response = await api.get('/projects/?page=1&page_size=100&status=active');
-            setProjects(response.data.items || response.data || []);
-        } catch (err) {
-            console.error('Failed to fetch projects', err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        setIsLoading(true);
-        fetchProjects();
-    }, [setProjects]);
-
-    const handleCreateProject = async () => {
-        setError('');
-        setFieldErrors({});
-
-        const parsed = createProjectSchema.safeParse({
-            name: newProjectName,
-            description: newProjectDesc || undefined,
-            paper_field: newProjectField || undefined,
-        });
-
-        if (!parsed.success) {
-            const nextErrors: Partial<Record<keyof CreateProjectValues, string>> = {};
-            for (const issue of parsed.error.issues) {
-                const key = issue.path[0] as keyof CreateProjectValues | undefined;
-                if (key && !nextErrors[key]) nextErrors[key] = issue.message;
-            }
-            setFieldErrors(nextErrors);
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            const payload: any = {
-                name: parsed.data.name,
-                description: parsed.data.description || null,
-                paper_field: parsed.data.paper_field || null,
-                color_scheme: 'preset-okabe-ito',
-            };
-            await api.post('/projects/', payload);
-            await fetchProjects();
-            setIsCreateModalOpen(false);
-
-            // Reset form
-            setNewProjectName('');
-            setNewProjectDesc('');
-            setNewProjectField('计算机科学'); // Reset to default
-        } catch (e: any) {
-            console.error(e);
-            setError(e.response?.data?.detail || '项目创建失败，请重试');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-
-    const handleDelete = async (e: React.MouseEvent, id: number) => { // Changed id type to number based on original code
-        e.stopPropagation();
-        if (!confirm('确定要删除此项目吗？')) return;
-        try {
-            await api.delete(`/projects/${id}`);
-            fetchProjects();
-        } catch (err) {
-            console.error('Failed to delete project', err);
-            alert('删除项目失败，请重试');
-        }
-    };
-
-    const handleProjectClick = (project: any) => {
-        navigate(`/projects/${project.id}`);
-    };
-
-    const formatDate = (dateString: string) => {
-        return format(new Date(dateString || new Date()), 'yyyy年M月d日');
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">我的项目</h1>
-                    <p className="text-muted-foreground mt-1">管理您的论文配图项目及文档</p>
-                </div>
-
-                <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="w-4 h-4 mr-2" />
-                            新建项目
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                            <DialogTitle>新建配图项目</DialogTitle>
-                            <DialogDescription>
-                                创建一个新项目来组织您的论文、提示词和生成的配图。
-                            </DialogDescription>
-                        </DialogHeader>
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                handleCreateProject();
-                            }}
-                            className="space-y-4"
-                        >
-                            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-
-                            <div className="grid gap-4 py-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">项目名称 <span className="text-destructive">*</span></Label>
-                                    <Input
-                                        id="name"
-                                        placeholder="例如：Attention Is All You Need"
-                                        value={newProjectName}
-                                        onChange={(e) => {
-                                            setNewProjectName(e.target.value);
-                                            if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
-                                        }}
-                                    />
-                                    {fieldErrors.name && <p className="text-sm font-medium text-destructive">{fieldErrors.name}</p>}
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="description">描述 (可选)</Label>
-                                    <Input
-                                        id="description"
-                                        placeholder="项目简要说明..."
-                                        value={newProjectDesc}
-                                        onChange={e => setNewProjectDesc(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="field">研究领域</Label>
-                                    <Input
-                                        id="field"
-                                        placeholder="例如：计算机视觉、NLP"
-                                        value={newProjectField}
-                                        onChange={(e) => {
-                                            setNewProjectField(e.target.value);
-                                            if (fieldErrors.paper_field) setFieldErrors((prev) => ({ ...prev, paper_field: undefined }));
-                                        }}
-                                    />
-                                    {fieldErrors.paper_field && <p className="text-sm font-medium text-destructive">{fieldErrors.paper_field}</p>}
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>取消</Button>
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting ? '保存中...' : '创建项目'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-            </div>
-
-            {isLoading ? (
-                <div className="flex justify-center items-center h-64 text-muted-foreground">
-                    <RefreshCw className="w-8 h-8 animate-spin mb-4" />
-                    <p className="ml-3">加载项目中...</p>
-                </div>
-            ) : projects.length === 0 ? (
-                <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed">
-                    <Folder className="w-12 h-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold">暂无项目</h3>
-                    <p className="text-muted-foreground mt-2 max-w-sm">
-                        您还没有创建任何项目。新建一个项目来开始管理您的文档并生成配图。
-                    </p>
-                    <Button className="mt-6" onClick={() => setIsCreateModalOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        新建项目
-                    </Button>
-                </Card>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {projects.map(project => (
-                        <Card
-                            key={project.id}
-                            className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-md group"
-                            onClick={() => handleProjectClick(project)}
-                        >
-                            <CardHeader className="pb-3 border-b">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <CardTitle className="text-xl line-clamp-1" title={project.name}>{project.name}</CardTitle>
-                                        <CardDescription className="mt-1 flex items-center gap-2">
-                                            {project.paper_field && <Badge variant="secondary" className="font-normal">{project.paper_field}</Badge>}
-                                            <span className="text-xs">{formatDate(project.created_at)}</span>
-                                        </CardDescription>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10 -mt-1 -mr-2"
-                                        onClick={(e) => handleDelete(e, project.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">删除项目</span>
-                                    </Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="pt-4">
-                                <p className="text-sm text-muted-foreground line-clamp-2 h-10">
-                                    {project.description || "无描述"}
-                                </p>
-
-                                <div className="mt-6 grid grid-cols-3 gap-2 text-center text-sm border-t pt-4">
-                                    <div className="flex flex-col items-center justify-center">
-                                        <span className="font-semibold text-foreground flex items-center"><FileText className="w-3.5 h-3.5 mr-1 text-blue-500" /> {project.document_count || 0}</span>
-                                        <span className="text-xs text-muted-foreground">文档</span>
-                                    </div>
-                                    <div className="flex flex-col items-center justify-center border-l">
-                                        <span className="font-semibold text-foreground flex items-center"><MessageSquare className="w-3.5 h-3.5 mr-1 text-green-500" /> {project.prompt_count || 0}</span>
-                                        <span className="text-xs text-muted-foreground">提示词</span>
-                                    </div>
-                                    <div className="flex flex-col items-center justify-center border-l">
-                                        <span className="font-semibold text-foreground flex items-center"><ImageIcon className="w-3.5 h-3.5 mr-1 text-purple-500" /> {project.image_count || 0}</span>
-                                        <span className="text-xs text-muted-foreground">配图</span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
+  const { t, language } = useI18n();
+  const navigate = useNavigate();
+  const projects = useResource(workbenchApi.projects, t('Could not load projects.', '无法加载项目。'));
+  const action = useAction();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [field, setField] = useState('');
+  return <div className="space-y-5"><header className="flex flex-wrap items-center justify-between gap-3 border-b pb-4"><h1 className="text-xl font-semibold">{t('Projects', '项目')}</h1><div className="flex items-center gap-2"><IconButton label={t('Refresh projects', '刷新项目')} disabled={projects.refreshing} onClick={() => void projects.refresh()}><RefreshCw className="h-4 w-4" /></IconButton><Button onClick={() => { action.setError(''); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />{t('New project', '新建项目')}</Button></div></header>
+    <ErrorNotice message={projects.error || (!open ? action.error : '')} />
+    {projects.loading ? <Loading /> : !projects.data?.items.length ? <Empty>{t('No projects', '暂无项目')}</Empty> : <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">{projects.data.items.map(project => <article key={project.id} className="min-w-0 rounded-md border p-4"><div className="flex items-start justify-between gap-2"><Link to={`/projects/${project.id}`} className="min-w-0 flex-1 hover:text-primary"><h2 className="flex items-start gap-2 text-base font-semibold"><FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="break-words">{project.name}</span></h2></Link><IconButton label={t(`Delete ${project.name}`, `删除 ${project.name}`)} disabled={action.pending} onClick={() => {
+      if (!window.confirm(t(`Delete project "${project.name}"?`, `删除项目“${project.name}”？`))) return;
+      void action.run(async () => { await workbenchApi.deleteProject(project.id); await projects.refresh(); });
+    }}><Trash2 className="h-4 w-4" /></IconButton></div>
+      <p className="mt-2 min-h-10 break-words text-sm text-muted-foreground">{project.description || t('No description', '暂无描述')}</p><p className="mt-3 break-words text-xs text-muted-foreground">{project.paper_field} · {displayDate(project.created_at, language)}</p>
+      <div className="mt-4 flex flex-wrap gap-4 border-t pt-3 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5 text-blue-600" />{project.document_count} {t('documents', '文档')}</span><span className="flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5 text-emerald-600" />{project.prompt_count} {t('prompts', '提示词')}</span><span className="flex items-center gap-1.5"><Image className="h-3.5 w-3.5 text-rose-600" />{project.image_count} {t('images', '图像')}</span></div>
+    </article>)}</div>}
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>{t('New project', '新建项目')}</DialogTitle><DialogDescription className="sr-only">{t('Project details', '项目详情')}</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={e => { e.preventDefault(); void action.run(async () => { const project = await workbenchApi.createProject({ name: name.trim(), description: description.trim() || null, paper_field: field.trim() || null, color_scheme: 'okabe-ito' }); setOpen(false); navigate(`/projects/${project.id}`); }); }}>
+      <Field label={t('Name', '名称')}><Input value={name} onChange={e => setName(e.target.value)} required maxLength={250} autoFocus disabled={action.pending} /></Field><Field label={t('Description', '描述')}><Textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} disabled={action.pending} /></Field><Field label={t('Research field', '研究领域')}><Input value={field} onChange={e => setField(e.target.value)} disabled={action.pending} /></Field><ErrorNotice message={action.error} /><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={action.pending}>{t('Cancel', '取消')}</Button><Button type="submit" disabled={action.pending || !name.trim()}><Plus className="mr-2 h-4 w-4" />{t('Create project', '创建项目')}</Button></div>
+    </form></DialogContent></Dialog>
+  </div>;
 }
