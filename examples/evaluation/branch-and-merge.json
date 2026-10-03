@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "id": "branch-and-merge",
+  "description": "Original educational graph with data, skip, and control edges. Sparse section indices deliberately exercise stable source identities rather than list positions.",
+  "sections": [
+    {
+      "index": 2,
+      "title": "Flow",
+      "content": "Input feeds Encoder through the encode edge. Encoder feeds Decoder through the features edge. Decoder feeds Output through the prediction edge. Input also feeds Decoder through a skip edge named residual. Controller sends a control edge named mode to Decoder."
+    },
+    {
+      "index": 7,
+      "title": "Grouping",
+      "content": "Encoder and Decoder belong to the Transform group. This routing example makes no performance claim."
+    }
+  ],
+  "required_labels": ["Input", "Encoder", "Decoder", "Output", "Controller"],
+  "required_edges": [
+    {"source_label": "Input", "target_label": "Encoder", "label": "encode", "kind": "data"},
+    {"source_label": "Encoder", "target_label": "Decoder", "label": "features", "kind": "data"},
+    {"source_label": "Decoder", "target_label": "Output", "label": "prediction", "kind": "data"},
+    {"source_label": "Input", "target_label": "Decoder", "label": "residual", "kind": "skip"},
+    {"source_label": "Controller", "target_label": "Decoder", "label": "mode", "kind": "control"}
+  ],
+  "reference_spec": {
+    "version": 1,
+    "title": "Branch and merge",
+    "caption": "Encoder and Decoder belong to the Transform group.",
+    "direction": "TB",
+    "nodes": [
+      {"id": "input", "label": "Input", "role": "input", "sources": [{"section_index": 2, "quote": "Input feeds Encoder through the encode edge."}]},
+      {"id": "encoder", "label": "Encoder", "role": "process", "group_id": "transform", "sources": [{"section_index": 7, "quote": "Encoder and Decoder belong to the Transform group."}]},
+      {"id": "decoder", "label": "Decoder", "role": "process", "group_id": "transform", "sources": [{"section_index": 2, "quote": "Encoder feeds Decoder through the features edge."}]},
+      {"id": "output", "label": "Output", "role": "output", "sources": [{"section_index": 2, "quote": "Decoder feeds Output through the prediction edge."}]},
+      {"id": "controller", "label": "Controller", "role": "note", "sources": [{"section_index": 2, "quote": "Controller sends a control edge named mode to Decoder."}]}
+    ],
+    "edges": [
+      {"id": "encode-edge", "source": "input", "target": "encoder", "label": "encode", "kind": "data", "sources": [{"section_index": 2, "quote": "Input feeds Encoder through the encode edge."}]},
+      {"id": "features-edge", "source": "encoder", "target": "decoder", "label": "features", "kind": "data", "sources": [{"section_index": 2, "quote": "Encoder feeds Decoder through the features edge."}]},
+      {"id": "prediction-edge", "source": "decoder", "target": "output", "label": "prediction", "kind": "data", "sources": [{"section_index": 2, "quote": "Decoder feeds Output through the prediction edge."}]},
+      {"id": "residual-edge", "source": "input", "target": "decoder", "label": "residual", "kind": "skip", "sources": [{"section_index": 2, "quote": "Input also feeds Decoder through a skip edge named residual."}]},
+      {"id": "mode-edge", "source": "controller", "target": "decoder", "label": "mode", "kind": "control", "sources": [{"section_index": 2, "quote": "Controller sends a control edge named mode to Decoder."}]}
+    ],
+    "groups": [{"id": "transform", "label": "Transform"}]
+  }
+}

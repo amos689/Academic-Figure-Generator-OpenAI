@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "id": "retrieval-routing",
+  "description": "Original educational retrieval pipeline. It supplies no measured outcomes; performance numbers added by a candidate are unsupported.",
+  "sections": [
+    {
+      "index": 0,
+      "title": "Information flow",
+      "content": "Query feeds Retrieve through the query edge. Retrieve feeds Evidence through the passages edge. Evidence feeds Compose through the context edge. Compose emits Answer through the response edge."
+    },
+    {
+      "index": 1,
+      "title": "Scope",
+      "content": "This educational pipeline specifies information flow only. It reports no measured accuracy, latency, or performance gains."
+    }
+  ],
+  "required_labels": ["Query", "Retrieve", "Evidence", "Compose", "Answer"],
+  "required_edges": [
+    {"source_label": "Query", "target_label": "Retrieve", "label": "query", "kind": "data"},
+    {"source_label": "Retrieve", "target_label": "Evidence", "label": "passages", "kind": "data"},
+    {"source_label": "Evidence", "target_label": "Compose", "label": "context", "kind": "data"},
+    {"source_label": "Compose", "target_label": "Answer", "label": "response", "kind": "data"}
+  ],
+  "reference_spec": {
+    "version": 1,
+    "title": "Retrieval routing",
+    "caption": "This educational pipeline specifies information flow only.",
+    "direction": "LR",
+    "nodes": [
+      {"id": "query", "label": "Query", "role": "input", "sources": [{"section_index": 0, "quote": "Query feeds Retrieve through the query edge."}]},
+      {"id": "retrieve", "label": "Retrieve", "role": "process", "sources": [{"section_index": 0, "quote": "Query feeds Retrieve through the query edge."}]},
+      {"id": "evidence", "label": "Evidence", "role": "process", "sources": [{"section_index": 0, "quote": "Retrieve feeds Evidence through the passages edge."}]},
+      {"id": "compose", "label": "Compose", "role": "process", "sources": [{"section_index": 0, "quote": "Evidence feeds Compose through the context edge."}]},
+      {"id": "answer", "label": "Answer", "role": "output", "sources": [{"section_index": 0, "quote": "Compose emits Answer through the response edge."}]}
+    ],
+    "edges": [
+      {"id": "query-edge", "source": "query", "target": "retrieve", "label": "query", "kind": "data", "sources": [{"section_index": 0, "quote": "Query feeds Retrieve through the query edge."}]},
+      {"id": "passages-edge", "source": "retrieve", "target": "evidence", "label": "passages", "kind": "data", "sources": [{"section_index": 0, "quote": "Retrieve feeds Evidence through the passages edge."}]},
+      {"id": "context-edge", "source": "evidence", "target": "compose", "label": "context", "kind": "data", "sources": [{"section_index": 0, "quote": "Evidence feeds Compose through the context edge."}]},
+      {"id": "response-edge", "source": "compose", "target": "answer", "label": "response", "kind": "data", "sources": [{"section_index": 0, "quote": "Compose emits Answer through the response edge."}]}
+    ],
+    "groups": []
+  }
+}

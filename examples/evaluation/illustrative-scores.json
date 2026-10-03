@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "id": "illustrative-scores",
+  "description": "Original fictional teaching data, not empirical research results. Tests preserve which model owns which percentage, not merely whether a number occurs somewhere in the source.",
+  "sections": [
+    {
+      "index": 0,
+      "title": "Teaching setup",
+      "content": "Teaching data feeds Baseline through the baseline branch and Method through the method branch. Each branch emits its score. All values in this example are fixed fictional teaching data and are not empirical research results."
+    },
+    {
+      "index": 1,
+      "title": "Fictional score table",
+      "content": "Model\tAccuracy\nBaseline\t70%\nMethod\t82%\n\nBaseline accuracy: 70%. Method accuracy: 82%."
+    }
+  ],
+  "required_labels": ["Teaching data", "Baseline", "Method", "Baseline accuracy: 70%", "Method accuracy: 82%"],
+  "required_edges": [
+    {"source_label": "Teaching data", "target_label": "Baseline", "label": "baseline branch", "kind": "data"},
+    {"source_label": "Teaching data", "target_label": "Method", "label": "method branch", "kind": "data"},
+    {"source_label": "Baseline", "target_label": "Baseline accuracy: 70%", "label": "score", "kind": "data"},
+    {"source_label": "Method", "target_label": "Method accuracy: 82%", "label": "score", "kind": "data"}
+  ],
+  "allowed_numeric_text": [
+    "Baseline accuracy: 70%",
+    "Method accuracy: 82%",
+    "Baseline accuracy: 70%. Method accuracy: 82%."
+  ],
+  "reference_spec": {
+    "version": 1,
+    "title": "Fictional teaching scores",
+    "caption": "Baseline accuracy: 70%. Method accuracy: 82%.",
+    "direction": "LR",
+    "nodes": [
+      {"id": "data", "label": "Teaching data", "role": "input", "sources": [{"section_index": 0, "quote": "Teaching data feeds Baseline through the baseline branch and Method through the method branch."}]},
+      {"id": "baseline", "label": "Baseline", "role": "process", "sources": [{"section_index": 0, "quote": "Teaching data feeds Baseline through the baseline branch and Method through the method branch."}]},
+      {"id": "method", "label": "Method", "role": "process", "sources": [{"section_index": 0, "quote": "Teaching data feeds Baseline through the baseline branch and Method through the method branch."}]},
+      {"id": "baseline-score", "label": "Baseline accuracy: 70%", "role": "output", "sources": [{"section_index": 1, "quote": "Baseline accuracy: 70%."}]},
+      {"id": "method-score", "label": "Method accuracy: 82%", "role": "output", "sources": [{"section_index": 1, "quote": "Method accuracy: 82%."}]}
+    ],
+    "edges": [
+      {"id": "baseline-branch", "source": "data", "target": "baseline", "label": "baseline branch", "kind": "data", "sources": [{"section_index": 0, "quote": "Teaching data feeds Baseline through the baseline branch and Method through the method branch."}]},
+      {"id": "method-branch", "source": "data", "target": "method", "label": "method branch", "kind": "data", "sources": [{"section_index": 0, "quote": "Teaching data feeds Baseline through the baseline branch and Method through the method branch."}]},
+      {"id": "baseline-score-edge", "source": "baseline", "target": "baseline-score", "label": "score", "kind": "data", "sources": [{"section_index": 0, "quote": "Each branch emits its score."}]},
+      {"id": "method-score-edge", "source": "method", "target": "method-score", "label": "score", "kind": "data", "sources": [{"section_index": 0, "quote": "Each branch emits its score."}]}
+    ],
+    "groups": []
+  }
+}
