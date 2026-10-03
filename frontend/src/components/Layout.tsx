@@ -22,7 +22,7 @@ export function Layout() {
                     className="flex items-center space-x-3 group"
                     onClick={() => setSidebarOpen(false)}
                 >
-                    <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-lg flex-shrink-0" />
+                    <img src="/logo.png" alt="Academic Figure Generator" className="w-8 h-8 object-contain flex-shrink-0" />
                     <span className="font-semibold text-sm text-foreground leading-tight group-hover:text-primary transition-colors">
                         科研配图生成器
                     </span>
@@ -121,7 +121,7 @@ export function Layout() {
                         <Menu className="w-5 h-5" />
                     </button>
                     <Link to="/projects" className="flex items-center space-x-2">
-                        <img src="/logo.jpg" alt="Logo" className="w-6 h-6 rounded" />
+                        <img src="/logo.png" alt="Academic Figure Generator" className="w-6 h-6 object-contain flex-shrink-0" />
                         <span className="font-semibold text-sm text-foreground">科研配图生成器</span>
                     </Link>
                 </div>

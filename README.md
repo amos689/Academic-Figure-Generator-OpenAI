@@ -1,323 +1,281 @@
 <p align="center">
-  <img src="./logo.png" alt="Academic Figure Generator Logo" width="220" />
+  <img src="./logo.png" alt="Academic Figure Generator" width="144" height="144" />
 </p>
 
-# Academic Figure Generator
+<h1 align="center">Academic Figure Generator</h1>
 
-![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-[![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
+<p align="center"><strong>OpenAI Edition</strong></p>
+<p align="center">Turn research into figures, with an editable prompt at every step.</p>
 
-AI 驱动的学术论文配图生成工具（个人本地版）。上传论文 → AI 分析内容生成 Prompt → 一键生成高质量科研配图。
+<p align="center">
+  <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>
+</p>
 
-> **一句话**：把"写完论文还要画图"的痛点，变成「上传 → 确认 → 下载」三步流程。
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#workflow">Workflow</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#codex-skills">Codex skills</a>
+</p>
 
-## 示例配图
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3563E9?style=flat-square" alt="Python 3.12 or newer" />
+  <img src="https://img.shields.io/badge/React-19-2D907D?style=flat-square" alt="React 19" />
+  <img src="https://img.shields.io/badge/AI-OpenAI-252525?style=flat-square" alt="OpenAI APIs" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-E27057?style=flat-square" alt="MIT License" /></a>
+</p>
 
-以下均为本平台实际生成的学术配图示例：
+A local research-figure workbench for turning papers and ideas into visual drafts. Bring a PDF, DOCX, or TXT document, generate structured figure prompts, refine the composition, and create or edit images through OpenAI.
 
-<table>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/example-architecture.png" alt="网络架构图示例" />
-<br/><sub><b>PMST 预测网络架构图</b></sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/example-signal.png" alt="信号处理流程图示例" />
-<br/><sub><b>时频域信号处理流程图</b></sub>
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/example-network.png" alt="深度学习模块详图示例" />
-<br/><sub><b>深度学习模块详解图</b></sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/example-anatomy.png" alt="带标注的解剖图示例" />
-<br/><sub><b>带标注的解剖结构图</b></sub>
-</td>
-</tr>
-</table>
+The prompt is a first-class artifact: you can inspect and revise what the model is about to draw before committing to an image.
 
-## 功能特性
+## Workflow
 
-| 功能 | 说明 |
-|------|------|
-| 🤖 **智能 Prompt 生成** | 上传 PDF/DOCX/TXT 论文，OpenAI Responses API 自动分析内容并生成配图描述 |
-| 🖼️ **高质量配图** | 支持 1K/2K/4K 多分辨率，16:9/4:3/1:1 等多种比例 |
-| 🎨 **配色方案** | 50+ 预设学术配色（含色盲友好方案），支持自定义配色 |
-| ✏️ **图生图编辑** | 基于已有图片 + 文字指令进行二次编辑 |
-| ⚡ **实时状态** | SSE 流式推送生成进度，无需手动刷新 |
-| 📁 **项目管理** | 按项目组织论文、Prompt 和配图 |
-
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 后端 | FastAPI · SQLAlchemy (Async) · Python 3.12+ |
-| 前端 | React 19 · TypeScript · Vite · Tailwind CSS · Radix UI |
-| 数据库 | SQLite (自动创建，零配置) |
-| 存储 | 本地文件系统 (`backend/data/`) |
-| AI (Prompt) | OpenAI Responses API (`gpt-6-astra` 默认，推理强度 `max`) |
-| AI (配图) | OpenAI Images API (`gpt-image-2.5-sunburst` 默认，质量 `max`) |
-
-模型配置于 **2026-10-02** 根据 OpenAI 官方文档核对。文本采用旗舰 [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)，图片采用侧重精确生成与编辑的 [GPT Image 2.5 Sunburst](https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst)。这是一组明确的默认模型 ID，不会自动切换到未来的新模型；环境变量可以覆盖这些默认值。
-
-## 项目结构
-
-```
-academic-figure-generator/
-├── backend/                  # FastAPI 后端
-│   ├── app/
-│   │   ├── api/v1/           # API 路由 (projects, documents, prompts, images, color_schemes)
-│   │   ├── models/           # SQLAlchemy ORM 模型 (SQLite)
-│   │   ├── schemas/          # Pydantic 请求/响应 Schema
-│   │   ├── services/         # 业务逻辑层
-│   │   │   ├── openai_prompt_service.py # OpenAI Responses API 集成
-│   │   │   ├── local_storage_service.py # 本地文件存储
-│   │   │   ├── image_service.py         # OpenAI 图片生成/编辑
-│   │   │   ├── document_service.py      # PDF/DOCX/TXT 解析
-│   │   │   └── prompt_service.py        # Prompt CRUD
-│   │   ├── core/             # 中间件、异常处理、Prompt 模板/配色
-│   │   ├── config.py         # 环境变量配置
-│   │   └── main.py           # FastAPI 应用工厂
-│   ├── data/                 # 运行时数据 (SQLite DB, 上传文件, 生成图片)
-│   └── pyproject.toml
-├── frontend/                 # React SPA 前端
-│   ├── src/
-│   │   ├── pages/            # 页面组件 (Projects, ProjectWorkspace, Generate, ColorSchemes, Settings)
-│   │   ├── components/ui/    # Radix UI 组件库
-│   │   ├── store/            # Zustand 状态管理
-│   │   └── lib/              # API 客户端
-│   ├── package.json
-│   └── vite.config.ts
-├── academic-figure-prompt/   # AI Coding Agent Skill (SKILL.md)
-├── .env                      # 环境变量
-└── README.md
+```mermaid
+flowchart LR
+    A["Paper or idea"] --> B["Structured prompt"]
+    B --> C["Review and refine"]
+    C --> D["Generate a figure"]
+    D --> E["Edit or download"]
+    E -. "Refine the prompt" .-> C
+    classDef input fill:#EDF2FF,stroke:#3563E9,color:#243963;
+    classDef review fill:#EEF7F3,stroke:#2D907D,color:#225544;
+    class A,B,D,E input;
+    class C review;
 ```
 
-## 快速开始
+**Read the paper. Shape the prompt. Review the figure.** Each stage remains visible in the project workspace.
 
-### 前置要求
+### Choose Your Entry Point
 
-- **Python 3.12+**
-- **Node.js 18+**
-- **OpenAI API Key**：用于 Prompt 生成和图片生成
+| Mode | Start with | Use it when |
+| --- | --- | --- |
+| **Paper workspace** | A PDF, DOCX, or TXT paper | You want prompts grounded in selected sections, with documents and figures kept together. |
+| **Quick generation** | Your own image prompt | You already know the composition and want to generate a figure directly. |
+| **Codex skills** | A paper or research description in your coding agent | You only need detailed figure prompts, without running the web application. |
 
-### 1. 克隆仓库
+### What You Can Do
+
+| Capability | Current implementation |
+| --- | --- |
+| Paper-aware composition | Parse documents, select sections, request an overall framework or section-specific figures, and add your own instructions. |
+| Editable prompts | Inspect the generated English prompt and save revisions before generating an image. |
+| Visual direction | Nine bundled palette presets, a custom palette manager, aspect-ratio controls, and requests for styles such as pastel. |
+| Figure generation | OpenAI image generation and editing; 1K, 2K, and 4K area-based size tiers in the project workspace. |
+| Iterative editing | Submit an edit instruction against an existing image, then preview and download the result. |
+| Structural drafts | Template mode requests an unlabeled base diagram for later annotation. |
+| Local organization | SQLite project records, local uploads and image files, and generation-status updates in the interface. |
+
+The web interface currently uses primarily Chinese labels. These documentation pages are available in both English and Chinese.
+
+## Quick Start
+
+### Requirements
+
+- Python **3.12+**.
+- Node.js **22.12+** and npm.
+- An OpenAI API key with access to the configured text and image models.
+
+The commands below target macOS and Linux. No external database, Redis, or worker service is required.
+
+### 1. Get the Project
 
 ```bash
 git clone https://github.com/amos689/Academic-Figure-Generator-OpenAI.git
 cd Academic-Figure-Generator-OpenAI
 ```
 
-### 2. 配置环境变量
+### 2. Start the Backend
 
-推荐把 OpenAI API key 放在 Mac / 系统环境变量中：
+Set the key in the same terminal that starts the backend. The value below is a placeholder.
 
 ```bash
 export OPENAI_API_KEY="your-openai-api-key"
-```
 
-也可以创建项目根目录或 `backend/` 目录下的 `.env` 文件：
-
-```bash
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_TEXT_MODEL=gpt-6-astra
-OPENAI_TEXT_REASONING_EFFORT=max
-OPENAI_TEXT_MAX_OUTPUT_TOKENS=32768
-OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst
-OPENAI_IMAGE_QUALITY=max
-```
-
-密钥读取优先级：系统环境变量 → 本地 `.env` → `backend/app/config.py` 中的默认空位。
-开源提交前请勿提交任何真实 API key。
-
-**从旧版本升级：** 如果已有系统环境变量或 `.env` 指定了旧模型、推理强度、输出预算或图片质量，请将这些配置同步更新为上面的值，或删除对应覆盖项以使用代码默认值，然后重启后端。升级代码不会覆盖用户显式配置，也不需要修改数据库或重新生成历史图片。
-
-在已激活的后端虚拟环境中重新执行 `pip install -e .`（工作目录为 `backend/`），安装本次升级要求的 `openai>=3.23.0`。
-
-默认设置优先考虑生成质量。GPT-6 Astra 的推理强度和 GPT Image 2.5 的图片质量均使用当前支持的最高档 `max`，可能增加耗时及费用；可分别改为 `high` 降低开销。`OPENAI_TEXT_MAX_OUTPUT_TOKENS` 同时限制推理和最终 JSON 输出，并非质量档位；默认 `32768` 为长提示词预留空间。如提示预算耗尽，可提高此值、减少一次生成的配图数量或降低推理强度。Prompt 生成请求会等待后端返回，不受前端通用两分钟超时限制。
-
-图片仍可选择 1K / 2K / 4K 和不同长宽比，默认 2K。实际尺寸由面积档位和比例计算；两边均为 16 的倍数，最长边不超过 3840，长短边比例不超过 3:1，总像素在 655,360 至 8,294,400 之间。超过 `2560x1440` 的尺寸属于官方标注的实验性范围，详见 [图片生成参数](https://developers.openai.com/api/docs/guides/image-generation#size-and-quality-options)。切换回 GPT Image 2 时，请同时将 `OPENAI_IMAGE_QUALITY` 设为 `high`，旧模型不支持 `xhigh` / `max`。
-
-### 3. 启动后端
-
-```bash
 cd backend
-
-# 创建虚拟环境 (推荐)
-python -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-
-# 安装依赖
-pip install -e .
-
-# 启动开发服务器
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-首次启动时会自动创建 SQLite 数据库 (`backend/data/app.db`) 和数据目录。
-
-### 4. 启动前端
-
-```bash
-cd frontend
-
-npm install
-npm run dev
-```
-
-### 5. 访问
-
-| 服务 | 地址 |
-|------|------|
-| 应用首页 | http://localhost:5173 |
-| API 文档 (Swagger) | http://localhost:8000/docs |
-
-## 使用流程
-
-### 核心工作流
-
-```
-上传论文 (PDF/DOCX/TXT)
-    │
-    ▼
-后端解析 → 提取文本和章节结构
-    │
-    ▼
-OpenAI Responses API → 分析论文 → 生成配图 Prompt
-    │
-    ▼
-确认/编辑 Prompt → 选择分辨率和比例
-    │
-    ▼
-OpenAI Images API → 生成高质量配图
-    │
-    ▼
-下载图片 / 图生图编辑
-```
-
-### 快捷生成
-
-除了项目工作流，还支持**快捷生成**模式：直接输入 Prompt 文本，跳过论文上传步骤，快速生成配图。
-
-## 架构概览
-
-```
-浏览器 (React SPA)
-    │
-    ▼
-FastAPI 后端 (localhost:8000)
-    │
-    ├── SQLite (项目、文档、Prompt、图片元数据)
-    ├── 本地文件系统 (上传文件、生成图片)
-    │
-    ├── OpenAI Responses API → Prompt 生成 (同步)
-    └── OpenAI Images API → 图片生成/编辑 (异步后台任务)
-```
-
-## 环境变量参考
-
-| 变量 | 必填 | 默认值 | 说明 |
-|------|------|--------|------|
-| `OPENAI_API_KEY` | 是 | — | OpenAI API Key，用于 Prompt 和图片生成 |
-| `OPENAI_API_BASE` | 否 | `https://api.openai.com/v1` | OpenAI API 地址 |
-| `OPENAI_TEXT_MODEL` | 否 | `gpt-6-astra` | Prompt 生成模型 |
-| `OPENAI_TEXT_REASONING_EFFORT` | 否 | `max` | Astra 支持 `low` / `medium` / `high` / `xhigh` / `max` |
-| `OPENAI_TEXT_MAX_OUTPUT_TOKENS` | 否 | `32768` | 推理和最终输出共享的 token 上限；Astra 最大支持 128,000 |
-| `OPENAI_IMAGE_MODEL` | 否 | `gpt-image-2.5-sunburst` | 图片生成/编辑模型；可选 `gpt-image-2.5-flare` 侧重速度 |
-| `OPENAI_IMAGE_QUALITY` | 否 | `max` | Image 2.5 支持 `low` / `medium` / `high` / `xhigh` / `max` / `auto` |
-| `DATABASE_PATH` | 否 | `./data/app.db` | SQLite 数据库路径 |
-| `DATA_DIR` | 否 | `./data` | 数据存储目录 |
-| `DEBUG` | 否 | `true` | 调试模式 (启用 API 文档) |
-| `CORS_ORIGINS` | 否 | `["http://localhost:3000","http://localhost:5173"]` | CORS 允许来源 |
-| `MAX_UPLOAD_SIZE_MB` | 否 | `50` | 最大上传文件大小 (MB) |
-
-## AI 学术配图 Prompt 技能（AI Coding Agent Skill）
-
-本项目附带了两个独立的 **AI Coding Agent Skill**——`academic-figure-prompt` 与 `academic-figure-prompt-pastel`。它们可直接在 Codex 或其他支持本地 Skill 的 AI 编程助手中使用，也可作为后端 OpenAI Prompt 模板的参考来源；无需部署完整平台即可获得顶会级学术论文配图提示词生成能力。
-
-### 功能简介
-
-`academic-figure-prompt` 是一个专为学术论文设计的 AI 提示词生成器，能够：
-
-- 📄 阅读并分析论文内容（PDF / LaTeX / Word）
-- 🎨 提供 **8 种预设学术配色方案**（Okabe-Ito、Blue 单色系、Teal+Amber 等），含色盲友好选项
-- 🖼️ 生成极其详细的英文提示词，用于 AI 图片工具生成顶会级别的专业配图
-- 📐 覆盖多种图表类型：框架图、网络架构图、模块详解图、对比/消融图、数据模板图
-
-### 安装方式
-
-#### 方式 1：使用 npx skills 一键安装（推荐）
-
-```bash
-npx skills add amos689/Academic-Figure-Generator-OpenAI
-```
-
-#### 方式 2：手动安装
-
-```bash
-git clone https://github.com/amos689/Academic-Figure-Generator-OpenAI.git
-
-# Codex
-cp -r Academic-Figure-Generator-OpenAI/academic-figure-prompt ~/.codex/skills/
-cp -r Academic-Figure-Generator-OpenAI/academic-figure-prompt-pastel ~/.codex/skills/
-```
-
-### 使用方法
-
-安装后，在 AI 编程助手对话中直接触发即可：
-
-```
-You: 帮我看一下这篇论文，生成论文配图提示词
-AI:  [分析论文内容 → 展示配色方案选择 → 生成详细英文提示词]
-
-You: 用 Teal+Amber 配色，帮我画一个网络架构图的提示词
-AI:  [直接使用方案C生成网络架构图提示词]
-```
-
-在 Codex 中也可以直接使用本仓库随附的 Skill：
-
-```
-帮我阅读这篇论文，生成论文配图提示词
-pastel风格论文配图
-modern ML figure prompt
-```
-
-## 开发指南
-
-### 后端开发
-
-```bash
-cd backend
+python3 -m venv .venv
 source .venv/bin/activate
-
-# 运行测试
-pytest -v
-
-# 代码检查
-ruff check app/
-ruff format app/
+python -m pip install -e .
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### 前端开发
+On first launch, the backend creates its local SQLite database and seeds the bundled palettes.
+
+### 3. Start the Frontend
+
+Open a second terminal at the repository root:
 
 ```bash
 cd frontend
-npm run dev     # 启动开发服务器 (localhost:5173)
-npm run build   # 生产构建
-npm run lint    # ESLint 检查
+npm ci
+npm run dev -- --host localhost --port 5173
 ```
 
-前端开发服务器会自动将 `/api` 请求代理到 `localhost:8000`。
+Open **[localhost:5173](http://localhost:5173)**. Interactive API documentation is at **[localhost:8000/docs](http://localhost:8000/docs)**.
 
-## 致谢
+<details>
+<summary>Windows / PowerShell</summary>
 
-本项目基于原项目 [LigphiDonk/academic-figure-generator](https://github.com/LigphiDonk/academic-figure-generator) 继续开发。感谢原作者在项目设计、代码实现与开源工作中的所有贡献。
+From the repository root, start the backend with:
 
-## 许可证
+```powershell
+$env:OPENAI_API_KEY = "your-openai-api-key"
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
 
-本项目基于 [MIT License](./LICENSE) 开源。
+Use the same frontend commands in a second terminal. If you use a newer Python installation, select that interpreter when creating the virtual environment.
+
+</details>
+
+### Make Your First Figure
+
+1. Create a project and upload a paper.
+2. Choose an overall framework or specific sections, then describe the figure you need.
+3. Generate the prompts and review the scientific content, labels, layout, and palette.
+4. Edit the prompt, choose an aspect ratio and size tier, then generate the image.
+5. Inspect the result, submit any edit instructions, and download the PNG.
+
+For a paper-independent starting point, open **Quick generation** (快捷生成). For a pastel layout, include a request such as:
+
+> Create a modern ML framework figure on a white canvas, using muted pastel panels, clear arrows, and readable labels. Preserve the method's actual modules and relationships.
+
+## Configuration
+
+The default text and image calls both use OpenAI. There is no separate Anthropic or NanoBanana credential requirement.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Empty | Required for backend prompt and image generation. |
+| `OPENAI_API_BASE` | `https://api.openai.com/v1` | API endpoint. |
+| `OPENAI_TEXT_MODEL` | `gpt-6-astra` | Structured figure-prompt generation through the Responses API. |
+| `OPENAI_TEXT_REASONING_EFFORT` | `max` | Text reasoning effort. |
+| `OPENAI_TEXT_MAX_OUTPUT_TOKENS` | `32768` | Shared budget for reasoning and final prompt output. |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-2.5-sunburst` | Image generation and editing through the Images API. |
+| `OPENAI_IMAGE_QUALITY` | `max` | Image rendering quality. |
+
+These are explicit project defaults, not aliases that automatically select future model releases. See the official [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) and [GPT Image 2.5 Sunburst](https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst) documentation for model capabilities.
+
+**Configuration priority:** system environment → `backend/.env` → root `.env` → defaults in [config.py](./backend/app/config.py). If both local files exist, `backend/.env` wins.
+
+For optional file-based configuration, use [.env.example](./.env.example) as a reference. Keep real credentials outside version control. Restart the backend after changing settings; the settings page displays configuration guidance and default values, not a live settings editor.
+
+### Quality and Size
+
+The defaults favor quality. Higher reasoning and image-quality settings can increase latency and usage; use `high` instead of `max` when a faster draft is sufficient.
+
+The project workspace defaults to **2K**. Its 1K / 2K / 4K labels describe target pixel areas; the actual width and height depend on the selected aspect ratio. Dimensions are rounded to multiples of 16, with a maximum edge of 3840 pixels and a maximum area of 8,294,400 pixels. Larger sizes are subject to the image model's [documented limits](https://developers.openai.com/api/docs/guides/image-generation#size-and-quality-options).
+
+### Upgrading an Existing Installation
+
+Pull the updated code, reactivate the backend virtual environment, and run `python -m pip install -e .` again. Run `npm ci` from `frontend/` when its dependencies change.
+
+Existing environment variables and `.env` values continue to override new defaults. Update or remove old model overrides, then restart the backend. When selecting a different model, choose reasoning and quality values supported by that model; for example, GPT Image 2 uses quality levels up to `high`.
+
+## Data and Privacy
+
+**Local storage does not mean offline generation.** Project records, uploaded documents, prompts, and generated images are stored on your machine. The backend sends selected extracted paper text and instructions to OpenAI for prompt generation, and sends prompts plus any reference image for image generation or editing.
+
+| Data | Default location |
+| --- | --- |
+| Project and generation records | `backend/data/app.db` |
+| Uploaded documents | `backend/data/uploads/` |
+| Generated images | `backend/data/figures/` |
+
+The repository ignores local `.env` files, `backend/data/`, virtual environments, and agent session records. You can override `DATA_DIR` and `DATABASE_PATH`; keep any alternative data locations outside version control as well.
+
+This is a single-user local application without authentication. The quick-start commands bind the backend to the local machine.
+
+## Codex Skills
+
+Use the bundled skills when you want figure prompts without installing the web application.
+
+| Skill | Focus |
+| --- | --- |
+| [Academic Figure Prompt](./academic-figure-prompt/SKILL.md) | Detailed English prompts for frameworks, architectures, modules, comparisons, and data-pattern figures. |
+| [Modern ML / Pastel](./academic-figure-prompt-pastel/SKILL.md) | White canvases, soft pastel accents, compact panels, and modern ML-paper compositions. |
+
+From the repository root:
+
+```bash
+mkdir -p ~/.codex/skills
+cp -R academic-figure-prompt ~/.codex/skills/
+cp -R academic-figure-prompt-pastel ~/.codex/skills/
+```
+
+If you have configured a custom `CODEX_HOME`, use its `skills/` directory instead. Ask Codex, for example:
+
+```text
+Read this paper and generate a detailed academic figure prompt.
+modern ML figure prompt
+pastel风格论文配图
+```
+
+Skill-only use generates prompt text in your coding agent. It does not start the backend or automatically call the project's image API.
+
+## Under the Hood
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Radix UI |
+| Backend | FastAPI, Pydantic Settings, SQLAlchemy |
+| Persistence | SQLite and local files |
+| Paper parsing | PyMuPDF, python-docx, plain-text parsing |
+| Prompt generation | OpenAI Responses API with a strict JSON schema |
+| Image generation | OpenAI Images API, with background tasks and status endpoints |
+
+Prompt generation is a synchronous HTTP operation; image generation runs in a backend background task. The web interface polls for status. An SSE endpoint is also available for API clients.
+
+```text
+Academic-Figure-Generator-OpenAI/
+  backend/app/api/v1/           HTTP endpoints
+  backend/app/services/        Document, prompt, and image services
+  backend/app/config.py        Model and application defaults
+  backend/tests/               Configuration and API-contract tests
+  frontend/src/pages/          Project, generation, palette, and settings views
+  academic-figure-prompt/      General figure-prompt skill
+  academic-figure-prompt-pastel/  Modern ML / pastel skill
+  README.md                    English documentation
+  README.zh-CN.md               Chinese documentation
+```
+
+## Development
+
+Backend checks, from `backend/` with its virtual environment activated:
+
+```bash
+python -m pip install -e ".[dev]"
+pytest -q
+```
+
+Frontend build, from `frontend/`:
+
+```bash
+npm run build
+```
+
+See the [backend notes](./backend/README.md) and [frontend notes](./frontend/README.md) for implementation entry points. To propose a change, [open an issue](https://github.com/amos689/Academic-Figure-Generator-OpenAI/issues) with the intended workflow, or submit a focused pull request with the relevant checks.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| API key missing | Export the key in the backend's terminal, or configure a local `.env`, then restart. |
+| Model unavailable | Check model access for the configured OpenAI account and endpoint. Explicit model overrides remain active after upgrades. |
+| Prompt generation reaches its token budget | Increase `OPENAI_TEXT_MAX_OUTPUT_TOKENS`, request fewer figures, or lower the reasoning effort. |
+| PDF produces little or no text | Use a text-based PDF, or extract OCR text externally and upload it as TXT. The default parser does not OCR scanned pages. |
+| Frontend cannot reach the backend | Check port 8000. For another endpoint, set `VITE_API_BASE_URL` in `frontend/.env` and allow the frontend origin in `CORS_ORIGINS`. |
+| A figure contains incorrect labels or relationships | Correct the prompt or submit an edit instruction, then inspect the new image. |
+
+Generated figures are raster drafts. Review scientific relationships, notation, and any numeric content before using them in a publication; this project does not export editable vector diagrams.
+
+## Acknowledgements
+
+This project is developed from [LigphiDonk/academic-figure-generator](https://github.com/LigphiDonk/academic-figure-generator). We thank the original author for all contributions to the project's design, implementation, and open-source release.
+
+## License
+
+[MIT](./LICENSE).

@@ -1,73 +1,48 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React workspace for Academic Figure Generator, OpenAI Edition.
 
-Currently, two official plugins are available:
+Project documentation: [English](../README.md) | [简体中文](../README.zh-CN.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Run Locally
 
-## React Compiler
+Use Node.js 22.12+ with npm. Start the backend on port 8000, then run from this directory:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev -- --host localhost --port 5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [localhost:5173](http://localhost:5173).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The default API base is `http://localhost:8000/api/v1`. To change it, set
+`VITE_API_BASE_URL` in a local `frontend/.env` and restart Vite. Include the
+`/api/v1` suffix, and allow the frontend origin in the backend's `CORS_ORIGINS`.
+Never put an OpenAI API key in a `VITE_*` variable: Vite exposes those values to the browser.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Source Map
+
+| Path | Responsibility |
+| --- | --- |
+| `src/pages/Projects.tsx` | Project creation and listing |
+| `src/pages/ProjectWorkspace.tsx` | Documents, section selection, prompts, generation, and editing |
+| `src/pages/Generate.tsx` | Direct prompt-to-image workflow |
+| `src/pages/ColorSchemes.tsx` | Palette management |
+| `src/pages/Settings.tsx` | Configuration reference, not a live settings editor |
+| `src/components/Layout.tsx` | Navigation, responsive sidebar, and project branding |
+| `src/lib/api.ts` | Backend URL and shared HTTP client |
+| `public/logo.png`, `public/favicon.png` | Browser-ready copies of the root project logo |
+
+The UI currently uses primarily Chinese labels. Root documentation is bilingual.
+
+## Checks
+
+```bash
+npm run build
+npm run lint
 ```
+
+The build runs TypeScript checks before producing `dist/`. Use `npm run preview`
+to inspect that build locally; the backend must still be running for API operations.
+
+Logo source and generation notes: [Branding](../docs/branding.md).
