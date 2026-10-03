@@ -1,0 +1,324 @@
+{
+  "version": 1,
+  "title": "Evidence-first retrieval",
+  "caption": "Illustrative example of an original educational workflow, not a published method or an empirical result. Both retrieval branches search a shared collection and converge at a reranker. Selected passages enter an evidence pack, which supports generation together with the original question. The answer cites the pack and reports uncertainty when evidence is insufficient.",
+  "direction": "LR",
+  "nodes": [
+    {
+      "id": "question",
+      "label": "User question",
+      "role": "input",
+      "group_id": "g_retrieval",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "A user question is the input."
+        }
+      ]
+    },
+    {
+      "id": "corpus",
+      "label": "Shared document collection",
+      "role": "input",
+      "group_id": "g_retrieval",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "Both branches search the same document collection."
+        },
+        {
+          "section_index": 3,
+          "quote": "Use a shared corpus above the retrieval branches with links to both branches."
+        }
+      ]
+    },
+    {
+      "id": "lexical",
+      "label": "Lexical retrieval\nMatch query terms to passages",
+      "role": "process",
+      "group_id": "g_retrieval",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "Lexical retrieval matches query terms to passages."
+        }
+      ]
+    },
+    {
+      "id": "semantic",
+      "label": "Semantic retrieval\nCompare query embedding with passage embeddings",
+      "role": "process",
+      "group_id": "g_retrieval",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "Semantic retrieval compares a query embedding with passage embeddings."
+        }
+      ]
+    },
+    {
+      "id": "reranker",
+      "label": "Shared reranker\nOrder combined candidates\nRemove duplicates",
+      "role": "process",
+      "group_id": "g_retrieval",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The two branches send their candidate passages to a shared reranker."
+        },
+        {
+          "section_index": 2,
+          "quote": "The reranker orders the combined candidates and removes duplicates."
+        }
+      ]
+    },
+    {
+      "id": "evidence_pack",
+      "label": "Evidence pack\nPassage text\nDocument identifier\nSection reference",
+      "role": "process",
+      "group_id": "g_evidence",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The evidence pack stores passage text together with a document identifier and a section reference."
+        }
+      ]
+    },
+    {
+      "id": "generator",
+      "label": "Grounded answer generator",
+      "role": "process",
+      "group_id": "g_generation",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "A grounded answer generator receives both the original user question and the evidence pack."
+        }
+      ]
+    },
+    {
+      "id": "cited_answer",
+      "label": "Answer with citations\nIf evidence is insufficient, report uncertainty",
+      "role": "output",
+      "group_id": "g_answer",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The answer generator produces an answer with citations pointing back to the evidence pack."
+        },
+        {
+          "section_index": 2,
+          "quote": "When the evidence is insufficient, the answer explicitly reports uncertainty instead of inventing support."
+        }
+      ]
+    },
+    {
+      "id": "reviewer",
+      "label": "Reviewer can inspect cited passages",
+      "role": "note",
+      "group_id": "g_answer",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "A reviewer can inspect the cited passages."
+        },
+        {
+          "section_index": 3,
+          "quote": "Keep the reviewer as a small note attached to the cited answer."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "question_to_lexical",
+      "source": "question",
+      "target": "lexical",
+      "label": "Question",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The question is sent to two parallel retrieval branches: lexical retrieval and semantic retrieval."
+        }
+      ]
+    },
+    {
+      "id": "question_to_semantic",
+      "source": "question",
+      "target": "semantic",
+      "label": "Question",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The question is sent to two parallel retrieval branches: lexical retrieval and semantic retrieval."
+        }
+      ]
+    },
+    {
+      "id": "corpus_to_lexical",
+      "source": "corpus",
+      "target": "lexical",
+      "label": "Shared collection",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "Both branches search the same document collection."
+        },
+        {
+          "section_index": 3,
+          "quote": "Use a shared corpus above the retrieval branches with links to both branches."
+        }
+      ]
+    },
+    {
+      "id": "corpus_to_semantic",
+      "source": "corpus",
+      "target": "semantic",
+      "label": "Shared collection",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "Both branches search the same document collection."
+        },
+        {
+          "section_index": 3,
+          "quote": "Use a shared corpus above the retrieval branches with links to both branches."
+        }
+      ]
+    },
+    {
+      "id": "lexical_to_reranker",
+      "source": "lexical",
+      "target": "reranker",
+      "label": "Candidate passages",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The two branches send their candidate passages to a shared reranker."
+        }
+      ]
+    },
+    {
+      "id": "semantic_to_reranker",
+      "source": "semantic",
+      "target": "reranker",
+      "label": "Candidate passages",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The two branches send their candidate passages to a shared reranker."
+        }
+      ]
+    },
+    {
+      "id": "reranker_to_evidence",
+      "source": "reranker",
+      "target": "evidence_pack",
+      "label": "Selected passages",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The reranker orders the combined candidates and removes duplicates. It passes the selected passages to an evidence pack."
+        }
+      ]
+    },
+    {
+      "id": "evidence_to_generator",
+      "source": "evidence_pack",
+      "target": "generator",
+      "label": "Evidence pack",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "A grounded answer generator receives both the original user question and the evidence pack."
+        }
+      ]
+    },
+    {
+      "id": "question_direct_to_generator",
+      "source": "question",
+      "target": "generator",
+      "label": "Original question — direct input",
+      "kind": "skip",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "A grounded answer generator receives both the original user question and the evidence pack."
+        },
+        {
+          "section_index": 3,
+          "quote": "The original question also connects directly to the grounded answer generator."
+        }
+      ]
+    },
+    {
+      "id": "generator_to_answer",
+      "source": "generator",
+      "target": "cited_answer",
+      "label": "Answer with citations",
+      "kind": "data",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The answer generator produces an answer with citations pointing back to the evidence pack."
+        }
+      ]
+    },
+    {
+      "id": "answer_citation_reference",
+      "source": "cited_answer",
+      "target": "evidence_pack",
+      "label": "Citations point back to evidence pack — reference only",
+      "kind": "skip",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "The answer generator produces an answer with citations pointing back to the evidence pack."
+        }
+      ]
+    },
+    {
+      "id": "answer_reviewer_note",
+      "source": "cited_answer",
+      "target": "reviewer",
+      "label": "Attached note: can inspect cited passages",
+      "kind": "control",
+      "sources": [
+        {
+          "section_index": 2,
+          "quote": "A reviewer can inspect the cited passages."
+        },
+        {
+          "section_index": 3,
+          "quote": "Keep the reviewer as a small note attached to the cited answer."
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "g_retrieval",
+      "label": "Parallel retrieval and reranking"
+    },
+    {
+      "id": "g_evidence",
+      "label": "Evidence pack"
+    },
+    {
+      "id": "g_generation",
+      "label": "Grounded answer generator"
+    },
+    {
+      "id": "g_answer",
+      "label": "Answer with citations"
+    }
+  ]
+}
