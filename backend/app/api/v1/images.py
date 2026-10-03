@@ -1,444 +1,239 @@
-"""Image generation, retrieval, editing, and SSE status endpoints — personal-use."""
+"""Durable raster generation, edit ancestry, selection, and private downloads."""
 
 import asyncio
+import hashlib
 import json
-import logging
 import mimetypes
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
-from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from fastapi.responses import FileResponse
+from sqlalchemy import select, update
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
+from app.api.v1.access import require_project
 from app.config import get_settings
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.dependencies import get_db
-from app.models.image import Image
-from app.models.project import Project
-from app.models.prompt import Prompt
+from app.models import Image, Project
 from app.schemas.image import (
     ImageDirectGenerateRequest,
     ImageGenerateRequest,
     ImageResponse,
     ImageStatusResponse,
+    ImageUpdate,
 )
+from app.services.image_generation_service import submit_image
 from app.services.local_storage_service import LocalStorageService
+from app.services.prompt_service import PromptService
+from app.services.upload_service import read_upload, reference_png, validate_mask
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="", tags=["Images"])
-
-
-def _ensure_openai_api_key_configured() -> None:
-    settings = get_settings()
-    if not settings.OPENAI_API_KEY:
-        raise BadRequestException(
-            "OPENAI_API_KEY not configured. Set it in your Mac environment, "
-            "a local .env file, or backend/app/config.py."
-        )
+router = APIRouter(tags=["Images"])
 
 
-async def _get_project(project_id: str, db: AsyncSession) -> Project:
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project: Project | None = result.scalar_one_or_none()
-    if project is None or project.status == "deleted":
-        raise NotFoundException("Project not found")
-    return project
+async def _get_image(db: AsyncSession, image_id: str) -> Image:
+    image = await db.get(Image, image_id)
+    if image is None:
+        raise NotFoundException("Image not found")
+    await require_project(db, image.project_id)
+    return image
 
 
-def _image_to_response(image: Image, download_url: str | None = None) -> ImageResponse:
-    return ImageResponse(
-        id=image.id,
-        prompt_id=image.prompt_id,
-        project_id=image.project_id,
-        resolution=image.resolution,
-        aspect_ratio=image.aspect_ratio,
-        color_scheme=image.color_scheme,
-        storage_path=image.storage_path,
-        file_size_bytes=image.file_size_bytes,
-        width_px=image.width_px,
-        height_px=image.height_px,
-        generation_status=image.generation_status,
-        generation_duration_ms=image.generation_duration_ms,
-        generation_error=image.generation_error,
-        retry_count=image.retry_count,
-        download_url=download_url,
-        created_at=image.created_at,
-    )
-
-
-async def _generate_image_async(
-    image_id: str,
-    prompt_text: str,
-    resolution: str,
-    aspect_ratio: str,
-    color_scheme: str | None,
-    reference_image_path: str | None,
-    edit_instruction: str | None,
-) -> None:
-    """Background task: call OpenAI Image API and update DB record."""
-    from app.dependencies import get_async_session_factory  # noqa: PLC0415
-    from app.services.image_service import ImageService  # noqa: PLC0415
-
-    session_factory = get_async_session_factory()
-    storage = LocalStorageService()
-
-    async with session_factory() as session:
-        result = await session.execute(select(Image).where(Image.id == image_id))
-        image: Image | None = result.scalar_one_or_none()
-        if image is None:
-            logger.error("Image %s not found for generation", image_id)
-            return
-
-        image.generation_status = "generating"
-        session.add(image)
-        await session.commit()
-
-        try:
-            image_service = ImageService()
-
-            # Load reference image bytes if path provided
-            reference_bytes: bytes | None = None
-            if reference_image_path and storage.file_exists(reference_image_path):
-                reference_bytes = storage.get_file(reference_image_path)
-
-            # ImageService.generate_image is synchronous — run in executor
-            import asyncio  # noqa: PLC0415
-
-            loop = asyncio.get_event_loop()
-            generated_data = await loop.run_in_executor(
-                None,
-                lambda: image_service.generate_image(
-                    prompt=prompt_text,
-                    resolution=resolution,
-                    aspect_ratio=aspect_ratio,
-                    reference_image_bytes=reference_bytes,
-                    edit_instruction=edit_instruction,
-                ),
-            )
-
-            # Decode base64 result to bytes and save locally
-            image_b64 = generated_data.get("image_base64", "")
-            if image_b64:
-                image_bytes = ImageService.image_bytes_from_base64(image_b64)
-                file_name = f"{image_id}.png"
-                storage_path = storage.save_figure(
-                    f"{image.project_id}/{file_name}", image_bytes
-                )
-                image.storage_path = storage_path
-                image.file_size_bytes = len(image_bytes)
-                image.width_px = generated_data.get("width")
-                image.height_px = generated_data.get("height")
-
-            image.generation_status = "completed"
-            image.generation_duration_ms = generated_data.get("duration_ms")
-            image.final_prompt_sent = prompt_text
-
-        except Exception as exc:
-            image.generation_status = "failed"
-            image.generation_error = str(exc)
-            logger.error("Image %s generation failed: %s", image_id, exc)
-
-        session.add(image)
-        await session.commit()
+def _response(image: Image) -> ImageResponse:
+    response = ImageResponse.model_validate(image)
+    if image.storage_path:
+        response.download_url = f"{get_settings().API_V1_PREFIX}/images/{image.id}/download"
+    return response
 
 
 @router.post(
-    "/prompts/{prompt_id}/images/generate",
-    response_model=ImageStatusResponse,
-    status_code=202,
+    "/prompts/{prompt_id}/images/generate", response_model=ImageStatusResponse, status_code=202
 )
 async def generate_image_from_prompt(
-    prompt_id: str,
-    data: ImageGenerateRequest,
-    db: AsyncSession = Depends(get_db),
+    prompt_id: str, data: ImageGenerateRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Generate an image from an existing prompt (async background task)."""
-    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
-    prompt: Prompt | None = result.scalar_one_or_none()
-    if prompt is None:
-        raise NotFoundException("Prompt not found")
-
-    if not prompt.active_prompt:
-        raise BadRequestException("Prompt has no text. Generate or edit the prompt first.")
-
-    _ensure_openai_api_key_configured()
-
-    image = Image(
-        prompt_id=prompt.id,
-        project_id=prompt.project_id,
-        resolution=data.resolution,
-        aspect_ratio=data.aspect_ratio,
-        color_scheme=data.color_scheme,
-        generation_status="pending",
-    )
-    db.add(image)
-    await db.flush()
-    await db.refresh(image)
-
-    # Launch background task (no Celery)
-    asyncio.create_task(
-        _generate_image_async(
-            image_id=image.id,
-            prompt_text=prompt.active_prompt,
-            resolution=data.resolution,
-            aspect_ratio=data.aspect_ratio,
-            color_scheme=data.color_scheme,
-            reference_image_path=None,
-            edit_instruction=None,
-        )
-    )
-
-    return ImageStatusResponse(
-        id=image.id,
-        generation_status=image.generation_status,
+    prompt = await PromptService(db).get_prompt(prompt_id)
+    return await submit_image(
+        db, prompt.project_id, prompt.active_prompt or "", data, prompt=prompt
     )
 
 
-@router.post(
-    "/images/generate-direct",
-    response_model=ImageStatusResponse,
-    status_code=202,
-)
+@router.post("/images/generate-direct", response_model=ImageStatusResponse, status_code=202)
 async def generate_image_direct(
-    data: ImageDirectGenerateRequest,
-    db: AsyncSession = Depends(get_db),
+    data: ImageDirectGenerateRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Generate an image from custom prompt text (no linked Prompt record)."""
     project_id = data.project_id
-
-    _ensure_openai_api_key_configured()
-
     if project_id is None:
-        # Auto-create or reuse a default project
-        result = await db.execute(
-            select(Project).where(
-                Project.name == "直接生成",
-                Project.status == "active",
-            )
+        project_id = "00000000-0000-4000-8000-000000000001"
+        await db.execute(
+            insert(Project)
+            .values(id=project_id, name="Quick figures", status="active")
+            .on_conflict_do_nothing(index_elements=["id"])
         )
-        project = result.scalar_one_or_none()
-        if project is None:
-            project = Project(
-                name="直接生成",
-                description="通过直接生成模式创建的图片",
-            )
-            db.add(project)
-            await db.flush()
-            await db.refresh(project)
-        project_id = project.id
-    else:
-        await _get_project(project_id, db)
-
-    image = Image(
-        prompt_id=None,
-        project_id=project_id,
-        resolution=data.resolution,
-        aspect_ratio=data.aspect_ratio,
-        color_scheme=data.color_scheme,
-        final_prompt_sent=data.prompt,
-        generation_status="pending",
-    )
-    db.add(image)
-    await db.flush()
-    await db.refresh(image)
-
-    asyncio.create_task(
-        _generate_image_async(
-            image_id=image.id,
-            prompt_text=data.prompt,
-            resolution=data.resolution,
-            aspect_ratio=data.aspect_ratio,
-            color_scheme=data.color_scheme,
-            reference_image_path=None,
-            edit_instruction=None,
-        )
-    )
-
-    return ImageStatusResponse(
-        id=image.id,
-        generation_status=image.generation_status,
-    )
+    return await submit_image(db, project_id, data.prompt, data)
 
 
 @router.get("/projects/{project_id}/images", response_model=list[ImageResponse])
-async def list_project_images(
-    project_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    await _get_project(project_id, db)
-    result = await db.execute(
-        select(Image)
-        .where(Image.project_id == project_id)
-        .order_by(Image.created_at.desc())
-    )
-    return [_image_to_response(img) for img in result.scalars().all()]
+async def list_project_images(project_id: str, db: AsyncSession = Depends(get_db)):
+    await require_project(db, project_id)
+    return [
+        _response(image)
+        for image in await db.scalars(
+            select(Image)
+            .where(Image.project_id == project_id)
+            .order_by(Image.created_at.desc(), Image.id.desc())
+        )
+    ]
 
 
 @router.get("/images/{image_id}", response_model=ImageResponse)
-async def get_image(
-    image_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Image).where(Image.id == image_id))
-    image: Image | None = result.scalar_one_or_none()
-    if image is None:
-        raise NotFoundException("Image not found")
-
-    download_url: str | None = None
-    if image.storage_path:
-        download_url = f"{get_settings().API_V1_PREFIX}/images/{image.id}/download"
-
-    return _image_to_response(image, download_url=download_url)
+async def get_image(image_id: str, db: AsyncSession = Depends(get_db)):
+    return _response(await _get_image(db, image_id))
 
 
 @router.get("/images/{image_id}/download")
-async def download_image(
-    image_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Image).where(Image.id == image_id))
-    image: Image | None = result.scalar_one_or_none()
-    if image is None:
-        raise NotFoundException("Image not found")
-    if not image.storage_path:
-        raise NotFoundException("Image file not available")
-
-    storage = LocalStorageService()
-    file_bytes = storage.get_file(image.storage_path)
-
-    guessed_type, _ = mimetypes.guess_type(image.storage_path)
-    media_type = guessed_type or "application/octet-stream"
-    filename = image.storage_path.split("/")[-1] or f"{image_id}.png"
-    quoted = quote(filename)
-    headers = {"Content-Disposition": f"inline; filename*=UTF-8''{quoted}"}
-
-    return StreamingResponse(iter([file_bytes]), media_type=media_type, headers=headers)
+async def download_image(image_id: str, db: AsyncSession = Depends(get_db)):
+    image = await _get_image(db, image_id)
+    if not image.storage_path or image.generation_status != "completed":
+        raise NotFoundException("Image file is not available")
+    path = LocalStorageService().get_file_path(image.storage_path)
+    if not path.is_file():
+        raise NotFoundException("Image file is missing")
+    return FileResponse(
+        path,
+        media_type=mimetypes.guess_type(path.name)[0] or "image/png",
+        filename=path.name,
+        content_disposition_type="inline",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/images/{image_id}/status", response_model=ImageStatusResponse)
-async def get_image_status(
-    image_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Image).where(Image.id == image_id))
-    image: Image | None = result.scalar_one_or_none()
-    if image is None:
-        raise NotFoundException("Image not found")
-    return ImageStatusResponse(
-        id=image.id,
-        generation_status=image.generation_status,
-        generation_error=image.generation_error,
-    )
+async def get_image_status(image_id: str, db: AsyncSession = Depends(get_db)):
+    return await _get_image(db, image_id)
 
 
-@router.post(
-    "/images/{image_id}/edit",
-    response_model=ImageStatusResponse,
-    status_code=202,
-)
+@router.patch("/images/{image_id}", response_model=ImageResponse)
+async def update_image(image_id: str, data: ImageUpdate, db: AsyncSession = Depends(get_db)):
+    image = await _get_image(db, image_id)
+    if data.favorite is not None:
+        image.favorite = data.favorite
+    if data.selected is not None:
+        if data.selected and image.generation_status != "completed":
+            raise BadRequestException("Only completed images can be selected")
+        if data.selected:
+            await db.execute(
+                update(Image)
+                .where(Image.project_id == image.project_id, Image.prompt_id == image.prompt_id)
+                .values(selected=False)
+            )
+        image.selected = data.selected
+    await db.flush()
+    await db.refresh(image)
+    return _response(image)
+
+
+@router.get("/images/{image_id}/provenance")
+async def image_provenance(image_id: str, db: AsyncSession = Depends(get_db)):
+    image = await _get_image(db, image_id)
+    return {
+        "image_id": image.id,
+        "prompt_id": image.prompt_id,
+        "prompt_revision": image.prompt_revision,
+        "parent_image_id": image.parent_image_id,
+        "generation_model": image.generation_model,
+        "quality": image.quality,
+        "resolution": image.resolution,
+        "aspect_ratio": image.aspect_ratio,
+        "style_preset": image.style_preset,
+        "palette": image.custom_colors,
+        "prompt": image.final_prompt_sent,
+        "edit_instruction": image.edit_instruction,
+        "generation_metadata": image.generation_metadata,
+        "duration_ms": image.generation_duration_ms,
+    }
+
+
+@router.post("/images/{image_id}/edit", response_model=ImageStatusResponse, status_code=202)
 async def edit_image(
     image_id: str,
-    edit_instruction: str = Form(...),
+    edit_instruction: str = Form(..., min_length=1, max_length=6000),
     reference_image: UploadFile | None = File(None),
+    mask_image: UploadFile | None = File(None),
+    idempotency_key: str | None = Form(None, min_length=1, max_length=128),
     db: AsyncSession = Depends(get_db),
 ):
-    """Image-to-image editing via OpenAI Image API."""
-    result = await db.execute(select(Image).where(Image.id == image_id))
-    source_image: Image | None = result.scalar_one_or_none()
-    if source_image is None:
-        raise NotFoundException("Image not found")
-
-    _ensure_openai_api_key_configured()
-
+    source = await _get_image(db, image_id)
+    if not edit_instruction.strip():
+        raise BadRequestException("Edit instruction must not be blank")
     storage = LocalStorageService()
-    reference_path: str | None = source_image.storage_path
-
+    reference_path = source.storage_path
     if reference_image is not None:
-        contents = await reference_image.read()
-        ref_filename = reference_image.filename or "reference.png"
-        reference_path = storage.save_upload(f"references/{image_id}/{ref_filename}", contents)
-
-    if not reference_path:
-        raise BadRequestException(
-            "No reference image available. Upload one or use an image that has been generated."
-        )
-
-    new_image = Image(
-        prompt_id=source_image.prompt_id,
-        project_id=source_image.project_id,
-        resolution=source_image.resolution,
-        aspect_ratio=source_image.aspect_ratio,
-        color_scheme=source_image.color_scheme,
-        reference_image_path=reference_path,
-        edit_instruction=edit_instruction,
-        generation_status="pending",
+        contents = reference_png(await read_upload(reference_image))
+        digest = hashlib.sha256(contents).hexdigest()
+        reference_path = storage.save_upload(f"references/{image_id}/{digest}.png", contents)
+    if not reference_path or not storage.file_exists(reference_path):
+        raise BadRequestException("Generate an image or upload a reference before editing")
+    mask_path = None
+    if mask_image is not None:
+        contents = await read_upload(mask_image)
+        validate_mask(storage.get_file(reference_path), contents)
+        digest = hashlib.sha256(contents).hexdigest()
+        mask_path = storage.save_upload(f"masks/{image_id}/{digest}.png", contents)
+    metadata = source.generation_metadata or {}
+    data = ImageGenerateRequest(
+        resolution=source.resolution,
+        aspect_ratio=source.aspect_ratio,
+        color_scheme=source.color_scheme,
+        custom_colors=source.custom_colors,
+        style_preset=source.style_preset,
+        profile=metadata.get("profile", "quality"),
+        idempotency_key=idempotency_key,
     )
-    db.add(new_image)
-    await db.flush()
-    await db.refresh(new_image)
-
-    asyncio.create_task(
-        _generate_image_async(
-            image_id=new_image.id,
-            prompt_text=source_image.final_prompt_sent or "",
-            resolution=source_image.resolution,
-            aspect_ratio=source_image.aspect_ratio,
-            color_scheme=source_image.color_scheme,
-            reference_image_path=reference_path,
-            edit_instruction=edit_instruction,
-        )
-    )
-
-    return ImageStatusResponse(
-        id=new_image.id,
-        generation_status=new_image.generation_status,
+    return await submit_image(
+        db,
+        source.project_id,
+        metadata.get("source_prompt")
+        or source.final_prompt_sent
+        or "Preserve the scientific content of this reference figure.",
+        data,
+        parent=source,
+        reference_path=reference_path,
+        mask_path=mask_path,
+        edit_instruction=edit_instruction.strip(),
     )
 
 
 @router.get("/images/{image_id}/stream")
-async def stream_image_status(
-    image_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """SSE endpoint for real-time image generation status."""
-    result = await db.execute(select(Image).where(Image.id == image_id))
-    if result.scalar_one_or_none() is None:
-        raise NotFoundException("Image not found")
+async def stream_image_status(image_id: str, db: AsyncSession = Depends(get_db)):
+    await _get_image(db, image_id)
 
-    async def event_generator():
-        from app.dependencies import get_async_session_factory  # noqa: PLC0415
+    async def events():
+        from app.dependencies import get_async_session_factory
 
-        session_factory = get_async_session_factory()
-        terminal_states = {"completed", "failed"}
-        last_status: str | None = None
-
+        last_status = None
         while True:
-            async with session_factory() as session:
-                result = await session.execute(select(Image).where(Image.id == image_id))
-                current_image: Image | None = result.scalar_one_or_none()
-
-            if current_image is None:
-                yield {"event": "error", "data": json.dumps({"error": "Image not found"})}
-                break
-
-            current_status = current_image.generation_status
-            if current_status != last_status:
-                last_status = current_status
-                event_data = {
-                    "id": str(current_image.id),
-                    "status": current_status,
-                    "storage_path": current_image.storage_path,
-                    "generation_duration_ms": current_image.generation_duration_ms,
-                }
-                yield {"event": "status", "data": json.dumps(event_data)}
-
-                if current_status in terminal_states:
-                    yield {"event": "done", "data": json.dumps({"status": current_status})}
+            async with get_async_session_factory()() as session:
+                current = await session.get(Image, image_id)
+                if current is None:
                     break
-
+                status = current.generation_status
+                if status != last_status:
+                    yield {
+                        "event": "status",
+                        "data": json.dumps(
+                            {
+                                "id": image_id,
+                                "status": status,
+                                "generation_error": current.generation_error,
+                            }
+                        ),
+                    }
+                    last_status = status
+                if status in {"completed", "failed", "interrupted", "cancelled"}:
+                    yield {"event": "done", "data": json.dumps({"status": status})}
+                    break
             await asyncio.sleep(2)
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(events())

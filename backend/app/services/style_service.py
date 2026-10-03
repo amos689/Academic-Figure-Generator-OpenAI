@@ -49,6 +49,11 @@ def generation_profile(profile: str) -> dict:
 
 
 async def resolve_palette(db: AsyncSession, name: str, custom: dict | None = None) -> dict:
+    if custom and set(ColorValues.model_fields) <= custom.keys():
+        try:
+            return ColorValues.model_validate(custom).model_dump()
+        except ValueError as exc:
+            raise BadRequestException("Palette must contain valid hex colors for every role") from exc
     normalized = name.replace("_", "-")
     base = PRESET_COLOR_SCHEMES.get(normalized)
     if base is None:
