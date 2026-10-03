@@ -1,174 +1,125 @@
-# Phase 2 需求文档：可编辑输出（SVG + draw.io）
+# Phase 2 Requirements: Research Workbench
 
-> 版本: 1.0 | 日期: 2026-03-06 | 状态: 需求评审
+Status: implemented behavior and explicit limits. This replaces the earlier
+export-only proposal; it is not a claim that every release gate has been met.
+See the [API contract](./workbench-api-contract.md) for request/response fields,
+the [technical design](./phase2-technical-design.md) for implementation details,
+and the [roadmap](./implementation-roadmap.md) for release planning.
+Existing upstream attribution and the [MIT license](../LICENSE) remain unchanged.
 
----
+## Scope
 
-## 1. 背景与动机
+The application is a single-user, local research-figure workbench: import source
+documents, select evidence, generate and revise prompts, generate/edit raster
+images, and export reviewed semantic diagrams. OpenAI is the only hosted AI
+provider integrated into the current runtime. Document parsing, vector exports,
+and fixture evaluation run locally without model calls.
 
-### 1.1 现状
+There is no Celery/Redis queue, MinIO object store, Claude provider, or automatic
+vision-critic pipeline. Historical names such as `claude_model` are compatibility
+fields, not descriptions of the current provider.
 
-Phase 1 已建成完整的学术配图生成链路：
+## Implemented Workflow
 
-```
-论文上传 → 文档解析 → Claude 生成 Prompt + FigureSpec
-→ 参考图匹配 → NanoBanana 出图（PNG/JPEG）→ VLM Critic 评审
-```
+| Area | Required behavior in the current workbench |
+| --- | --- |
+| Documents | Accept bounded PDF, DOCX, and TXT uploads; persist parse status and a durable job; expose ordered source sections. DOCX paragraphs and tables retain document order. |
+| Context | Select a document and its sections explicitly in the UI. Allocate a deterministic character budget across selected sections, favoring methods, results, and tables; spread excerpts through long sections instead of taking every section's prefix. Preserve original indices, exact excerpts, and coverage/truncation metadata. |
+| Prompts | Generate source-linked prompts and supported FigureSpecs with classic/pastel styles, project palettes, and quality/draft profiles. Allow text/spec review, revision history, and restore-as-new-revision. |
+| Images | Generate raster images from saved prompts; inspect uncropped previews, compare versions, mark favorites/selections, and inspect saved generation provenance. Edits create a child image with its parent recorded. |
+| Editing | Accept a reference image and optional drawn/uploaded mask. Validate the image and mask before a provider call. The mask guides generation; unmasked pixels may still change. |
+| Exports | Render reviewed FigureSpec v1 diagrams into editable SVG, native draw.io, and vector PDF with live text. Keep export history tied to the submitted prompt revision and spec snapshot. |
+| Configuration | Show effective non-secret settings, key presence/source, and available usage metadata. Connectivity checks are explicit, non-generative model-access requests, not background generation. |
 
-系统支持 12 种学术图类型、5 种期刊风格模板、Tag-based 参考图匹配、7 维度 VLM 质量评审。
+The bilingual frontend provides these workflows through typed workbench panels.
+FigureSpec editing is structured text/JSON editing with validation, not a
+freeform SVG or draw.io canvas editor.
 
-### 1.2 核心痛点
+## Reliability Requirements
 
-当前输出是**光栅图片（PNG/JPEG）**，学术论文作者面临以下问题：
+- Persist job inputs and resource records before dispatch. Track `queued`,
+  `running`, `succeeded`, `failed`, `interrupted`, and `cancelled` states in SQLite.
+- Recover persisted running jobs as interrupted after restart. Do not silently
+  repeat a possibly billed request. Cancellation applies only before a job starts;
+  failed/interrupted attempts require an explicit retry.
+- Use request idempotency to avoid duplicate submission, not to claim exactly-once
+  execution at the provider. An unknown provider outcome still needs user review.
+- Run one backend web worker per database. A nonblocking file lock guards the
+  database's worker lifecycle; bounded job concurrency is not multi-worker support.
+- Run document parsing and vector rendering in a spawned process pool, including
+  PyMuPDF text extraction and font work. Do not share PyMuPDF operations through
+  worker threads.
+- Save prompt changes using revisions and compare-and-swap (CAS). Stale
+  `expected_revision` values return 409. Restore creates a new revision, and a
+  text-only edit invalidates the old FigureSpec when the text changes.
+- Preserve existing database rows through migrations and keep a pre-upgrade
+  SQLite backup when a migration is needed. Local storage uses contained paths
+  and atomic file replacement; it is not a transactional object store.
 
-| 痛点 | 场景 | 影响 |
-|------|------|------|
-| 无法修改文字 | Reviewer 要求修改术语、修正 typo | 必须重新生成整张图 |
-| 无法微调布局 | 某个模块位置不理想 | 无法局部调整，只能重新描述 |
-| 无法适配排版 | 从双栏改单栏、调整 DPI | 光栅图缩放后质量下降 |
-| 无法复用元素 | 想在多张图中使用统一风格的子模块 | 每张图独立生成，无法复用 |
-| 无法精确配色 | 需要完全匹配期刊色板要求 | AI 配色接近但不精确 |
+## Evidence And Quality Boundaries
 
-### 1.3 目标
+Source indices are zero-based identifiers from the parsed document. Selecting or
+truncating context must not renumber them. Excerpts and table rows are source text,
+not generated summaries; coverage describes included text, not scientific coverage.
+A bounded context may omit sections or important details and must be identified as
+truncated. No OCR is implemented: image-only documents need a text-based source.
 
-让用户可以将 NanoBanana 生成的光栅图**重建为结构化可编辑文件**，在专业工具中精细调整：
+Generated nodes and edges must cite quotes present in the supplied context.
+Document-backed save/export paths check supplied references against document
+sections. These are whitespace-normalized lexical checks, **not entailment**:
+an existing quote does not prove a label, causal edge, or numerical claim correct.
+Schema-only validation also does not establish provenance. Users must review
+claims, labels, connections, results, and source suitability before publication.
 
-- **SVG**：在 Adobe Illustrator / Inkscape 中编辑，适合精确排版和印刷
-- **draw.io**：在 draw.io（diagrams.net）中编辑，适合快速修改和协作
+The [offline evaluation fixtures](../examples/evaluation/README.md) check exact
+required labels/edges, source quotes/indices, and explicitly allowed numeric
+wording. Their educational values are not measured research outcomes. Structural
+and lexical checks are separate from aesthetics, which the evaluator marks
+`not_evaluated`. No hosted evaluation API or model judge is involved; passing a
+fixture is not a general factual or visual-quality certificate.
 
----
+## Export Guarantees And Limits
 
-## 2. 用户故事
+- SVG contains editable text/shapes/connectors, draw.io contains native cells and
+  connections, and PDF contains vector geometry and live text. These are rendered
+  from FigureSpec, not raster images placed in differently named containers.
+- The supported abstraction is a bounded node/edge/group framework or flow
+  diagram. Arbitrary illustrations, photographs, plots, or generated raster
+  images are not losslessly reconstructed into this abstraction.
+- Semantic labels and connectivity come from the reviewed spec; geometry comes
+  from the local layout engine. Unsupported glyphs or unrouteable/crowded layouts
+  fail explicitly. External editors may substitute fonts or alter appearance.
+- A missing FigureSpec must be supplied or separately generated/reviewed before
+  export. Export itself makes no provider call. PDF is a publication format, not
+  a native graph-editing or round-trip editing format.
 
-### US-01：导出 SVG
-**作为**论文作者，**我希望**将 AI 生成的学术配图导出为 SVG 文件，**以便**在 Illustrator/Inkscape 中修改文字、调整颜色和微调布局。
+## Local Security And Settings
 
-**验收条件**：
-- 导出的 SVG 中每个模块是独立的 `<g>` 分组，可单独选中
-- 所有文字标注是 `<text>` 元素，可直接编辑
-- 颜色使用 `#RRGGBB` 格式，可精确修改
-- 箭头和连接线是独立路径，可调整走向
-- SVG 在 Inkscape 4.x 和 Adobe Illustrator 2024+ 中正常打开
+There is **no user authentication or tenant isolation**. Bind the backend and
+frontend to loopback. Do not expose them on a LAN, public host, or public tunnel.
+Host/origin checks and CORS reduce browser-origin risks; they are not access control
+for an untrusted client or protection for a public deployment.
 
-### US-02：导出 draw.io
-**作为**论文作者，**我希望**将 AI 生成的学术配图导出为 .drawio 文件，**以便**在 draw.io 网页版/桌面版中拖拽修改。
+Runtime settings resolve in this order: process environment, `backend/.env`, root
+`.env`, then code defaults. Empty credential values do not hide a populated
+lower-priority key. Settings are cached; restart after configuration changes.
+The UI exposes key presence and provenance, never the key or a key prefix.
+Provider diagnostics must not echo raw exceptions, request bodies, or credentials.
+Source excerpts and reference images are sent to the configured provider only
+when the associated generation operation is requested; this is local-first, not
+an entirely offline application. Local data and exported source metadata may
+contain unpublished material and require the user's publication review.
 
-**验收条件**：
-- 导出的 .drawio 中每个模块是独立 shape，可拖拽移动
-- 连接线与 shape 关联（移动 shape 时连接线跟随）
-- 文字可双击编辑
-- 子元素嵌套在父元素内（容器关系保持）
-- 文件可在 draw.io 网页版（diagrams.net）和桌面版中正常打开
+## Verification And Future Work
 
-### US-03：查看导出历史
-**作为**论文作者，**我希望**查看某张图的历史导出记录，**以便**重新下载之前导出的文件而不必重复导出。
+CI runs full backend `pytest` and `ruff check app tests`, plus frontend lockfile
+installation (`npm ci`), build, and tests. Deterministic tests cover jobs/recovery,
+revisions/CAS, parsing/context, upload/privacy boundaries, masks, source checks,
+and actual vector artifacts. Provider calls are mocked; tests and fixture scoring
+do not require paid calls. Visual review remains a separate release activity.
 
-**验收条件**：
-- 每个 prompt/image 下可查看历史导出列表
-- 显示导出格式、时间、文件大小
-- 可重新下载历史导出文件
-
-### US-04：从 Prompt 直接导出（无需先生成光栅图）
-**作为**论文作者，**我希望**在 prompt 生成后直接导出 SVG/draw.io，**以便**跳过光栅图生成步骤直接获得可编辑文件。
-
-**验收条件**：
-- prompt 卡片上提供"导出"按钮（即使尚未生成光栅图）
-- 无光栅图时，Claude Vision 仅基于 FigureSpec V1 + prompt 生成 V2
-- 有光栅图时，Claude Vision 同时参考原图以提高还原度
-
----
-
-## 3. 功能需求
-
-### 3.1 导出触发
-
-| 需求 ID | 描述 | 优先级 |
-|---------|------|--------|
-| FR-01 | 用户可在 image 卡片上点击导出，选择 SVG 或 draw.io 格式 | P0 |
-| FR-02 | 用户可在 prompt 卡片上点击导出（无需先生图） | P1 |
-| FR-03 | 导出为异步操作，前端显示 loading 状态 | P0 |
-| FR-04 | 导出完成后自动触发浏览器下载 | P0 |
-| FR-05 | 导出失败时显示错误信息（toast 提示） | P0 |
-
-### 3.2 导出质量
-
-| 需求 ID | 描述 | 优先级 |
-|---------|------|--------|
-| FR-06 | SVG 中所有文字为 `<text>` 元素（非 path 描边） | P0 |
-| FR-07 | SVG 中元素按逻辑层级分组（`<g>` 嵌套） | P0 |
-| FR-08 | draw.io 中连接线与 shape 保持关联 | P0 |
-| FR-09 | draw.io 中支持容器嵌套（子元素在父元素内） | P1 |
-| FR-10 | 导出颜色尽量还原原始光栅图配色 | P0 |
-| FR-11 | 支持全部 12 种图类型的导出 | P0 |
-
-### 3.3 导出管理
-
-| 需求 ID | 描述 | 优先级 |
-|---------|------|--------|
-| FR-12 | 查看某 prompt 的历史导出记录 | P2 |
-| FR-13 | 重新下载历史导出文件 | P2 |
-| FR-14 | 导出文件存储在 MinIO，通过 presigned URL 下载 | P0 |
-
-### 3.4 画布配置
-
-| 需求 ID | 描述 | 优先级 |
-|---------|------|--------|
-| FR-15 | 导出时可指定画布宽度（默认 1600px） | P1 |
-| FR-16 | 画布高度根据 aspect_ratio 自动计算 | P1 |
-
----
-
-## 4. 非功能需求
-
-| 需求 ID | 描述 | 指标 |
-|---------|------|------|
-| NFR-01 | 导出响应时间 | 单张图导出 < 30 秒（含 Claude Vision 调用） |
-| NFR-02 | SVG 文件大小 | < 500KB（典型学术图） |
-| NFR-03 | draw.io 文件大小 | < 200KB（典型学术图） |
-| NFR-04 | 导出成本 | 单次 Claude Vision 调用 ~$0.03-0.05 |
-| NFR-05 | 向后兼容 | 现有 PNG/JPEG 生成和下载流程完全不受影响 |
-| NFR-06 | 并发 | 支持同一用户同时导出多张图（不同 Celery task） |
-| NFR-07 | 错误恢复 | Claude Vision 调用失败时，export 状态标记为 failed，用户可重试 |
-
----
-
-## 5. 范围与排除
-
-### 5.1 Phase 2 范围内
-- SVG 导出
-- draw.io (.drawio) 导出
-- 导出 API + Celery 异步任务
-- 前端导出按钮 + 下载
-- FigureSpec V2 结构化 Schema
-
-### 5.2 Phase 2 范围外（后续迭代）
-- PPTX 导出（Phase 2.5）
-- 浏览器内 SVG 在线编辑（Phase 3）
-- 嵌入 draw.io 在线编辑器（Phase 3）
-- Pipeline auto 模式自动导出（Phase 3）
-- 导出后反向同步编辑结果到系统（Phase 3）
-- SVG 模板库（预置常用学术图模板）
-
----
-
-## 6. 依赖
-
-| 依赖项 | 说明 | 状态 |
-|--------|------|------|
-| FigureSpec V1 | prompts 表 figure_spec JSONB 列 | Phase 1 已完成 |
-| Claude Vision API | 用于 V1 → V2 enrichment | 已有基础设施（critique_tasks.py） |
-| MinIO 存储 | 导出文件存储 | 已有基础设施 |
-| NanoBanana 光栅图 | 作为 VLM 重建参考 | 已有 |
-| BYOK API Key 体系 | Claude API 调用费用 | Phase 1 已完成 |
-
----
-
-## 7. 风险与缓解
-
-| 风险 | 影响 | 缓解措施 |
-|------|------|---------|
-| Claude Vision 生成的 V2 坐标不准确 | 导出的图形布局偏差 | Pydantic 严格校验 + 边界检查；输出前检查元素重叠 |
-| 复杂图类型（graph_network）V2 生成质量低 | 部分图类型导出效果差 | 按图类型定制 enrichment prompt；先保证简单类型质量 |
-| SVG 在不同工具中渲染不一致 | 用户打开后效果不同 | 使用 SVG 1.1 标准子集；避免高级 CSS/filter |
-| draw.io 格式变更 | 导出文件无法打开 | 使用 draw.io 稳定的 mxGraph XML 格式 |
-| 导出成本累积 | 用户频繁导出增加 API 费用 | 缓存 FigureSpec V2（同一 prompt 重复导出不需重新调 Claude） |
+Not implemented or promised: public multi-user hosting, distributed workers,
+automatic paid retries, OCR, semantic entailment checking, aesthetic scoring,
+pixel-identical masked edits, arbitrary raster vectorization, embedded draw.io
+editing, imported-export round trips, or PowerPoint export. New capabilities need
+their own design and verification; no fixed cost or latency is guaranteed.
