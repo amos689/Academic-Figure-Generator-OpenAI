@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,7 +29,7 @@ class Prompt(Base, TimestampMixin):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    document_id: Mapped[Optional[str]] = mapped_column(
+    document_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
@@ -38,34 +38,34 @@ class Prompt(Base, TimestampMixin):
         Integer,
         nullable=False,
     )
-    title: Mapped[Optional[str]] = mapped_column(
+    title: Mapped[str | None] = mapped_column(
         String(300),
         nullable=True,
     )
-    original_prompt: Mapped[Optional[str]] = mapped_column(
+    original_prompt: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="AI-generated prompt",
     )
-    edited_prompt: Mapped[Optional[str]] = mapped_column(
+    edited_prompt: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="User-edited prompt",
     )
-    suggested_figure_type: Mapped[Optional[str]] = mapped_column(
+    suggested_figure_type: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
-    suggested_aspect_ratio: Mapped[Optional[str]] = mapped_column(
+    suggested_aspect_ratio: Mapped[str | None] = mapped_column(
         String(10),
         nullable=True,
     )
-    source_sections: Mapped[Optional[dict]] = mapped_column(
+    source_sections: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
         comment="Which document sections this prompt covers",
     )
-    claude_model: Mapped[Optional[str]] = mapped_column(
+    claude_model: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
@@ -81,15 +81,15 @@ class Prompt(Base, TimestampMixin):
     )
 
     @hybrid_property
-    def active_prompt(self) -> Optional[str]:
+    def active_prompt(self) -> str | None:
         """Returns edited_prompt if set, otherwise original_prompt."""
         if self.edited_prompt:
             return self.edited_prompt
         return self.original_prompt
 
     # Relationships
-    project: Mapped["Project"] = relationship("Project", back_populates="prompts")
-    document: Mapped[Optional["Document"]] = relationship("Document")
-    images: Mapped[list["Image"]] = relationship(
+    project: Mapped[Project] = relationship("Project", back_populates="prompts")
+    document: Mapped[Document | None] = relationship("Document")
+    images: Mapped[list[Image]] = relationship(
         "Image", back_populates="prompt", cascade="all, delete-orphan"
     )

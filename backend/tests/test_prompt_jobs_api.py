@@ -1,4 +1,4 @@
-from app.models import Document, Job, Project
+from app.models import Document, Project
 from app.services.job_handlers import register_handlers
 from app.services.job_service import JobRunner
 from app.services.openai_prompt_service import OpenAIPromptService

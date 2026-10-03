@@ -1,4 +1,3 @@
-import io
 from xml.etree import ElementTree as ET
 
 import pymupdf

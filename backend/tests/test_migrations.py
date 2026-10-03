@@ -42,7 +42,8 @@ async def test_unversioned_database_is_preserved_and_backed_up(tmp_path):
         await connection.run_sync(legacy)
         await connection.execute(
             text(
-                "INSERT INTO projects (id,name,color_scheme,status) VALUES ('legacy','Keep me','okabe-ito','active')"
+                "INSERT INTO projects (id,name,color_scheme,status) "
+                "VALUES ('legacy','Keep me','okabe-ito','active')"
             )
         )
         await connection.execute(text("DROP TABLE alembic_version"))

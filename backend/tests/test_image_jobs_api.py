@@ -4,7 +4,7 @@ import io
 from PIL import Image as PILImage
 from sqlalchemy import select
 
-from app.models import Image, Job
+from app.models import Image
 from app.services.image_service import ImageService
 from app.services.job_handlers import register_handlers
 from app.services.job_service import JobRunner

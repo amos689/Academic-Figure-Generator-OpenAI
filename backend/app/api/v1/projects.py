@@ -93,11 +93,19 @@ async def list_projects(
     if status is not None:
         base_query = base_query.where(Project.status == status)
 
-    total: int = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar_one()
+    total: int = (
+        await db.execute(select(func.count()).select_from(base_query.subquery()))
+    ).scalar_one()
     offset = (page - 1) * page_size
     rows = (
-        await db.execute(base_query.order_by(Project.created_at.desc()).offset(offset).limit(page_size))
-    ).scalars().all()
+        (
+            await db.execute(
+                base_query.order_by(Project.created_at.desc()).offset(offset).limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     items = [await _enrich_response(p, db) for p in rows]
     return ProjectListResponse(items=items, total=total, page=page, page_size=page_size)

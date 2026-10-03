@@ -1,7 +1,7 @@
 import io
 
-import pytest
 import httpx
+import pytest
 from fastapi import FastAPI, Request, UploadFile
 from PIL import Image
 

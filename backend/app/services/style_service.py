@@ -16,13 +16,23 @@ STYLES = {
         "id": "classic",
         "name": "Classic",
         "description": "Precise publication diagrams",
-        "instructions": "Use a clean white canvas, restrained flat fills, precise alignment, crisp vector-like lines, readable dark labels, and clear directional connectors. Encode distinctions with labels and shapes as well as color.",
+        "instructions": (
+            "Use a clean white canvas, restrained flat fills, precise alignment, crisp vector-like "
+            "lines, readable dark labels, and clear directional connectors. Encode distinctions "
+            "with labels and shapes as well as color."
+        ),
     },
     "pastel": {
         "id": "pastel",
         "name": "Pastel",
         "description": "Airy modern ML diagrams",
-        "instructions": "Use a pure white canvas with airy modern ML paper composition, soft pastel region fills, compact rounded panels, subtle shadows, small token squares, readable rounded sans-serif labels, and clear connector arrows. Keep rich scientific content organized, not decorative or vague. Use palette accents consistently across modules.",
+        "instructions": (
+            "Use a pure white canvas with airy modern ML paper composition, soft pastel region "
+            "fills, compact rounded panels, subtle shadows, small token squares, readable rounded "
+            "sans-serif labels, and clear connector arrows. "
+            "Keep rich scientific content organized, "
+            "not decorative or vague. Use palette accents consistently across modules."
+        ),
     },
 }
 
@@ -53,7 +63,9 @@ async def resolve_palette(db: AsyncSession, name: str, custom: dict | None = Non
         try:
             return ColorValues.model_validate(custom).model_dump()
         except ValueError as exc:
-            raise BadRequestException("Palette must contain valid hex colors for every role") from exc
+            raise BadRequestException(
+                "Palette must contain valid hex colors for every role"
+            ) from exc
     normalized = name.replace("_", "-")
     base = PRESET_COLOR_SCHEMES.get(normalized)
     if base is None:
@@ -79,4 +91,9 @@ async def resolve_palette(db: AsyncSession, name: str, custom: dict | None = Non
 def compose_image_prompt(prompt: str, style_preset: str, palette: dict) -> str:
     if style_preset not in STYLES:
         raise BadRequestException("Unknown figure style")
-    return f"{prompt.strip()}\n\nRendering direction:\n{STYLES[style_preset]['instructions']}\nExact semantic palette: {json.dumps(palette, sort_keys=True)}\nPreserve scientific labels, numbers, and connectivity. Do not invent results or decorative text."
+    return (
+        f"{prompt.strip()}\n\nRendering direction:\n{STYLES[style_preset]['instructions']}\n"
+        f"Exact semantic palette: {json.dumps(palette, sort_keys=True)}\n"
+        "Preserve scientific labels, numbers, and connectivity. "
+        "Do not invent results or decorative text."
+    )

@@ -20,7 +20,8 @@ async def submit_export(db: AsyncSession, prompt_id: str, data: ExportRequest) -
     raw = data.figure_spec.model_dump() if data.figure_spec else prompt.figure_spec
     if raw is None:
         raise BadRequestException(
-            "Generate or supply an editable FigureSpec first. Raster images are not converted to vectors."
+            "Generate or supply an editable FigureSpec first. "
+            "Raster images are not converted to vectors."
         )
     spec = FigureSpec.model_validate(raw)
     if prompt.document_id:

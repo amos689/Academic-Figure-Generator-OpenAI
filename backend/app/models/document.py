@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, BigInteger, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, new_uuid
@@ -43,16 +43,16 @@ class Document(Base, TimestampMixin):
         String(1000),
         nullable=False,
     )
-    full_text: Mapped[Optional[str]] = mapped_column(
+    full_text: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-    sections: Mapped[Optional[dict]] = mapped_column(
+    sections: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
         comment="Parsed chapter structure",
     )
-    page_count: Mapped[Optional[int]] = mapped_column(
+    page_count: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
@@ -62,11 +62,11 @@ class Document(Base, TimestampMixin):
         nullable=False,
         comment="pending/parsing/completed/failed",
     )
-    parse_error: Mapped[Optional[str]] = mapped_column(
+    parse_error: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-    ocr_markdown: Mapped[Optional[str]] = mapped_column(
+    ocr_markdown: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Raw OCR Markdown output",
@@ -74,4 +74,4 @@ class Document(Base, TimestampMixin):
     job_id: Mapped[str | None] = mapped_column(String(36))
 
     # Relationships
-    project: Mapped["Project"] = relationship("Project", back_populates="documents")
+    project: Mapped[Project] = relationship("Project", back_populates="documents")

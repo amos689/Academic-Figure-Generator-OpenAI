@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import FileValidationException
 from app.models import Document, FigureExport, Image, Job
-from app.services.document_service import DocumentService
 from app.services.job_service import JobRunner
 from app.services.local_storage_service import LocalStorageService
 from app.services.process_service import run_offline
@@ -43,7 +42,8 @@ async def parse_document(job: Job, db: AsyncSession) -> dict:
     result = await run_offline("parse_document", contents, document.file_type)
     if not result.get("full_text", "").strip():
         raise FileValidationException(
-            "No extractable text found. Supply a text-based PDF, DOCX, or TXT; OCR is not available."
+            "No extractable text found. Supply a text-based PDF, DOCX, or TXT; "
+            "OCR is not available."
         )
     document.full_text = result["full_text"]
     document.sections = result["sections"]
@@ -54,10 +54,10 @@ async def parse_document(job: Job, db: AsyncSession) -> dict:
 
 
 def register_handlers(runner: JobRunner) -> None:
-    from app.services.spec_generation_service import derive_spec_job
     from app.services.export_service import render_export_job
-    from app.services.prompt_generation_service import generate_prompt_job
     from app.services.image_generation_service import generate_image_job
+    from app.services.prompt_generation_service import generate_prompt_job
+    from app.services.spec_generation_service import derive_spec_job
 
     runner.register("document", parse_document, resource_failure)
     runner.register("prompt", generate_prompt_job, resource_failure)

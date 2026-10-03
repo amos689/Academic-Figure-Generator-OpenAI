@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import Boolean, JSON, String
+from sqlalchemy import JSON, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, TimestampMixin, new_uuid
@@ -30,10 +28,7 @@ class ColorScheme(Base, TimestampMixin):
     colors: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
-        comment=(
-            "Keys: primary, secondary, tertiary, text, fill, "
-            "section_bg, border, arrow"
-        ),
+        comment=("Keys: primary, secondary, tertiary, text, fill, section_bg, border, arrow"),
     )
     is_default: Mapped[bool] = mapped_column(
         Boolean,

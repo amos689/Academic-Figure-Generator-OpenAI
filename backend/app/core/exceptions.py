@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from app.core.privacy import redact_secrets
 
 
-class AppException(Exception):
+class AppException(Exception):  # noqa: N818 - public compatibility name
     """Base application exception."""
 
     def __init__(

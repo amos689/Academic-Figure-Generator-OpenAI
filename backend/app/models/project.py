@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,11 +27,11 @@ class Project(Base, TimestampMixin):
         String(200),
         nullable=False,
     )
-    description: Mapped[Optional[str]] = mapped_column(
+    description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-    paper_field: Mapped[Optional[str]] = mapped_column(
+    paper_field: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
         comment="e.g. 'computer vision', 'NLP'",
@@ -41,7 +41,7 @@ class Project(Base, TimestampMixin):
         default="okabe-ito",
         nullable=False,
     )
-    custom_colors: Mapped[Optional[dict]] = mapped_column(
+    custom_colors: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
     )
@@ -56,12 +56,12 @@ class Project(Base, TimestampMixin):
     )
 
     # Relationships
-    documents: Mapped[list["Document"]] = relationship(
+    documents: Mapped[list[Document]] = relationship(
         "Document", back_populates="project", cascade="all, delete-orphan"
     )
-    prompts: Mapped[list["Prompt"]] = relationship(
+    prompts: Mapped[list[Prompt]] = relationship(
         "Prompt", back_populates="project", cascade="all, delete-orphan"
     )
-    images: Mapped[list["Image"]] = relationship(
+    images: Mapped[list[Image]] = relationship(
         "Image", back_populates="project", cascade="all, delete-orphan"
     )

@@ -1,5 +1,5 @@
-import pytest_asyncio
 import httpx
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.database import configure_sqlite, migrate_database

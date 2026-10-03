@@ -1,8 +1,8 @@
 """FastAPI application factory — personal-use version."""
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -20,12 +20,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown logic."""
     logger.info("Starting up Academic Figure Generator API (personal-use)...")
 
+    from filelock import FileLock
+
     from app.core.database import migrate_database
     from app.dependencies import _engine, get_async_session_factory
     from app.services.job_handlers import register_handlers
     from app.services.job_service import JobRunner
     from app.services.process_service import stop_offline_workers
-    from filelock import FileLock
 
     settings = get_settings()
     Path(settings.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)

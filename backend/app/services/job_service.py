@@ -118,7 +118,8 @@ class JobRunner:
                     db,
                     job,
                     "interrupted",
-                    "Application stopped during this attempt. Provider outcome may be unknown; check usage before retrying.",
+                    "Application stopped during this attempt. Provider outcome may be unknown; "
+                    "check usage before retrying.",
                 )
             await db.commit()
 
@@ -178,7 +179,8 @@ class JobRunner:
                     db,
                     job,
                     "interrupted",
-                    "Application stopped during this attempt. Provider outcome may be unknown; check usage before retrying.",
+                    "Application stopped during this attempt. Provider outcome may be unknown; "
+                    "check usage before retrying.",
                 )
                 await db.commit()
             raise

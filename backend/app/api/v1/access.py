@@ -15,5 +15,6 @@ async def require_project(db: AsyncSession, project_id: str) -> Project:
 def require_api_key() -> None:
     if not get_settings().OPENAI_API_KEY:
         raise BadRequestException(
-            "OPENAI_API_KEY is not configured. Set it in the system environment or a local .env file."
+            "OPENAI_API_KEY is not configured. "
+            "Set it in the system environment or a local .env file."
         )

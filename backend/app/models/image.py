@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, new_uuid
@@ -22,7 +22,7 @@ class Image(Base, TimestampMixin):
         primary_key=True,
         default=new_uuid,
     )
-    prompt_id: Mapped[Optional[str]] = mapped_column(
+    prompt_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("prompts.id", ondelete="SET NULL"),
         nullable=True,
@@ -42,35 +42,35 @@ class Image(Base, TimestampMixin):
         default="16:9",
         nullable=False,
     )
-    color_scheme: Mapped[Optional[str]] = mapped_column(
+    color_scheme: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
-    custom_colors: Mapped[Optional[dict]] = mapped_column(
+    custom_colors: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
     )
-    reference_image_path: Mapped[Optional[str]] = mapped_column(
+    reference_image_path: Mapped[str | None] = mapped_column(
         String(1000),
         nullable=True,
     )
-    edit_instruction: Mapped[Optional[str]] = mapped_column(
+    edit_instruction: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-    storage_path: Mapped[Optional[str]] = mapped_column(
+    storage_path: Mapped[str | None] = mapped_column(
         String(1000),
         nullable=True,
     )
-    file_size_bytes: Mapped[Optional[int]] = mapped_column(
+    file_size_bytes: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
     )
-    width_px: Mapped[Optional[int]] = mapped_column(
+    width_px: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
-    height_px: Mapped[Optional[int]] = mapped_column(
+    height_px: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
@@ -79,16 +79,16 @@ class Image(Base, TimestampMixin):
         default="pending",
         nullable=False,
     )
-    generation_duration_ms: Mapped[Optional[int]] = mapped_column(
+    generation_duration_ms: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
-    generation_error: Mapped[Optional[str]] = mapped_column(
+    generation_error: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Failure reason for generation.",
     )
-    final_prompt_sent: Mapped[Optional[str]] = mapped_column(
+    final_prompt_sent: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -109,5 +109,5 @@ class Image(Base, TimestampMixin):
     selected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     # Relationships
-    prompt: Mapped[Optional["Prompt"]] = relationship("Prompt", back_populates="images")
-    project: Mapped["Project"] = relationship("Project", back_populates="images")
+    prompt: Mapped[Prompt | None] = relationship("Prompt", back_populates="images")
+    project: Mapped[Project] = relationship("Project", back_populates="images")
