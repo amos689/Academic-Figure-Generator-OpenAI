@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import get_settings
+from app.core.database import configure_sqlite
 
 settings = get_settings()
 
@@ -17,6 +18,7 @@ _engine = create_async_engine(
     echo=False,
     connect_args={"check_same_thread": False},
 )
+configure_sqlite(_engine)
 
 _AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=_engine,

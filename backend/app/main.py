@@ -20,16 +20,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown logic."""
     logger.info("Starting up Academic Figure Generator API (personal-use)...")
 
-    # Create SQLite tables
-    try:
-        from app.dependencies import _engine  # noqa: PLC0415
-        from app.models import Base  # noqa: PLC0415
+    from app.core.database import migrate_database
+    from app.dependencies import _engine
 
-        async with _engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("SQLite database tables verified.")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Database setup failed (continuing): %s", exc)
+    await migrate_database(_engine, get_settings().DATABASE_PATH)
+    logger.info("SQLite database migrations applied.")
 
     # Seed preset color schemes
     try:
