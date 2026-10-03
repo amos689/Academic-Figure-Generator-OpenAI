@@ -1,14 +1,18 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from 'react';
 import Layout from "./components/Layout";
-import { Projects } from "./pages/Projects";
-import { ProjectWorkspace } from "./pages/ProjectWorkspace";
-import { ColorSchemes } from "./pages/ColorSchemes";
-import { Settings } from "./pages/Settings";
-import { Generate } from "./pages/Generate";
+import { Loading } from './components/workbench/Common';
+
+const Projects = lazy(() => import('./pages/Projects').then(module => ({ default: module.Projects })));
+const ProjectWorkspace = lazy(() => import('./pages/ProjectWorkspace').then(module => ({ default: module.ProjectWorkspace })));
+const ColorSchemes = lazy(() => import('./pages/ColorSchemes').then(module => ({ default: module.ColorSchemes })));
+const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
+const Generate = lazy(() => import('./pages/Generate').then(module => ({ default: module.Generate })));
 
 function App() {
   return (
     <Router>
+      <Suspense fallback={<Loading />}>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/projects" replace />} />
@@ -19,6 +23,7 @@ function App() {
           <Route path="/generate" element={<Generate />} />
         </Route>
       </Routes>
+      </Suspense>
     </Router>
   );
 }
