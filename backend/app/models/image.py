@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, new_uuid
@@ -97,6 +97,16 @@ class Image(Base, TimestampMixin):
         default=0,
         nullable=False,
     )
+    job_id: Mapped[str | None] = mapped_column(String(36))
+    parent_image_id: Mapped[str | None] = mapped_column(String(36))
+    prompt_revision: Mapped[int | None] = mapped_column(Integer)
+    generation_model: Mapped[str | None] = mapped_column(String(100))
+    quality: Mapped[str | None] = mapped_column(String(20))
+    style_preset: Mapped[str | None] = mapped_column(String(20))
+    generation_metadata: Mapped[dict | None] = mapped_column(JSON)
+    mask_image_path: Mapped[str | None] = mapped_column(String(1000))
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    selected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     # Relationships
     prompt: Mapped[Optional["Prompt"]] = relationship("Prompt", back_populates="images")

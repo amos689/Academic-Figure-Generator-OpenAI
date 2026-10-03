@@ -71,6 +71,7 @@ class Document(Base, TimestampMixin):
         nullable=True,
         comment="Raw OCR Markdown output",
     )
+    job_id: Mapped[str | None] = mapped_column(String(36))
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="documents")

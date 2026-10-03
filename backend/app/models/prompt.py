@@ -69,6 +69,11 @@ class Prompt(Base, TimestampMixin):
         String(50),
         nullable=True,
     )
+    generation_model: Mapped[str | None] = mapped_column(String(100))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    figure_spec: Mapped[dict | None] = mapped_column(JSON)
+    style_preset: Mapped[str | None] = mapped_column(String(20))
+    generation_metadata: Mapped[dict | None] = mapped_column(JSON)
     generation_status: Mapped[str] = mapped_column(
         String(20),
         default="pending",

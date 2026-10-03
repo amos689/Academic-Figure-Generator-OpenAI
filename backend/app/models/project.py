@@ -45,6 +45,9 @@ class Project(Base, TimestampMixin):
         JSON,
         nullable=True,
     )
+    style_preset: Mapped[str] = mapped_column(
+        String(20), default="classic", server_default="classic"
+    )
     status: Mapped[str] = mapped_column(
         String(20),
         default="active",

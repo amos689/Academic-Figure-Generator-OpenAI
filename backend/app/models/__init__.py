@@ -5,6 +5,7 @@ from .image import Image
 from .job import Job
 from .project import Project
 from .prompt import Prompt
+from .prompt_revision import PromptRevision
 
 __all__ = [
     "Base",
@@ -15,4 +16,5 @@ __all__ = [
     "Image",
     "ColorScheme",
     "Job",
+    "PromptRevision",
 ]
