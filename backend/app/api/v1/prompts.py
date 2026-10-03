@@ -1,17 +1,16 @@
-"""Prompt generation and management endpoints — personal-use (no auth, no Celery)."""
+"""Durable prompt generation and conflict-aware revision history."""
 
-import logging
+import asyncio
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.api.v1.access import require_project
+from app.core.exceptions import AppException
 from app.dependencies import get_db
-from app.models.document import Document
-from app.models.project import Project
-from app.models.prompt import Prompt
+from app.models import Job, Prompt
+from app.schemas.job import JobResponse
 from app.schemas.prompt import (
     PromptGenerateRequest,
     PromptResponse,
@@ -20,150 +19,73 @@ from app.schemas.prompt import (
     PromptStatusResponse,
     PromptUpdate,
 )
-from app.services.openai_prompt_service import OpenAIPromptService
+from app.services.job_service import enqueue_job
+from app.services.prompt_generation_service import prepare_prompt_job
 from app.services.prompt_service import PromptService
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="", tags=["Prompts"])
+router = APIRouter(tags=["Prompts"])
 
 
-async def _get_project(project_id: str, db: AsyncSession) -> Project:
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project: Project | None = result.scalar_one_or_none()
-    if project is None or project.status == "deleted":
-        raise NotFoundException("Project not found")
-    return project
+async def _submit(project_id: str, data: PromptGenerateRequest, db: AsyncSession) -> Job:
+    payload = await prepare_prompt_job(db, project_id, data)
+    job, _ = await enqueue_job(
+        db,
+        project_id=project_id,
+        kind="prompt",
+        payload=payload,
+        idempotency_key=data.idempotency_key,
+    )
+    await db.commit()
+    await db.refresh(job)
+    return job
 
 
-def _prompt_to_response(p: Prompt) -> PromptResponse:
-    return PromptResponse.model_validate(p)
+@router.post("/projects/{project_id}/prompt-jobs", response_model=JobResponse, status_code=202)
+async def queue_prompts(
+    project_id: str, data: PromptGenerateRequest, db: AsyncSession = Depends(get_db)
+):
+    return await _submit(project_id, data, db)
 
 
 @router.post(
-    "/projects/{project_id}/prompts/generate",
-    response_model=list[PromptResponse],
-    status_code=201,
+    "/projects/{project_id}/prompts/generate", response_model=list[PromptResponse], status_code=201
 )
 async def generate_prompts(
-    project_id: str,
-    data: PromptGenerateRequest,
-    db: AsyncSession = Depends(get_db),
+    project_id: str, data: PromptGenerateRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Generate figure prompts via OpenAI Responses API (synchronous).
-
-    Requires at least one parsed document attached to the project.
-    """
-    project = await _get_project(project_id, db)
-    settings = get_settings()
-    if not settings.OPENAI_API_KEY:
-        raise BadRequestException(
-            "OPENAI_API_KEY not configured. Set it in your Mac environment, "
-            "a local .env file, or backend/app/config.py."
-        )
-
-    # Find the most recent completed document
-    result = await db.execute(
-        select(Document)
-        .where(
-            Document.project_id == project.id,
-            Document.parse_status == "completed",
-        )
-        .order_by(Document.created_at.desc())
-        .limit(1)
+    """Legacy waiting endpoint, using the same durable queue and concurrency limit."""
+    job = await _submit(project_id, data, db)
+    while job.status in {"queued", "running"}:
+        await asyncio.sleep(0.5)
+        await db.refresh(job)
+    if job.status != "succeeded":
+        raise AppException(502, job.error or f"Prompt generation {job.status}", "GENERATION_FAILED")
+    ids = (job.result or {}).get("prompt_ids", [])
+    return list(
+        await db.scalars(select(Prompt).where(Prompt.id.in_(ids)).order_by(Prompt.figure_number))
     )
-    document: Document | None = result.scalar_one_or_none()
-    if document is None:
-        raise BadRequestException(
-            "No parsed document found for this project. Upload a document first."
-        )
-
-    # Get sections
-    sections = document.sections or []
-    if data.section_indices:
-        sections = [s for i, s in enumerate(sections) if i in data.section_indices]
-
-    if not sections:
-        raise BadRequestException("No sections available for prompt generation.")
-
-    # Resolve color scheme
-    from app.core.prompts.color_schemes import PRESET_COLOR_SCHEMES  # noqa: PLC0415
-
-    color_scheme = data.custom_colors or PRESET_COLOR_SCHEMES.get(data.color_scheme, {})
-
-    # Call OpenAI Responses API
-    openai_service = OpenAIPromptService()
-    result_data = await openai_service.generate_figure_prompts(
-        sections=sections,
-        color_scheme=color_scheme,
-        paper_field=project.paper_field,
-        figure_types=data.figure_types,
-        user_request=data.user_request,
-        max_figures=data.max_figures,
-        template_mode=data.template_mode,
-    )
-
-    figures = result_data.get("figures", [])
-    if not figures:
-        raise BadRequestException("OpenAI did not generate any figure prompts. Try again.")
-
-    # Save to DB
-    prompt_service = PromptService(db)
-    prompts = await prompt_service.create_prompts_from_figures(
-        project_id=project.id,
-        document_id=document.id,
-        figures=figures,
-        claude_model=result_data.get("model", settings.OPENAI_TEXT_MODEL),
-    )
-
-    logger.info(
-        "Generated %d prompts for project %s in %d ms",
-        len(prompts),
-        project.id,
-        result_data.get("duration_ms", 0),
-    )
-
-    return [_prompt_to_response(p) for p in prompts]
 
 
 @router.get("/projects/{project_id}/prompts", response_model=list[PromptResponse])
-async def list_project_prompts(
-    project_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    await _get_project(project_id, db)
-    result = await db.execute(
-        select(Prompt).where(Prompt.project_id == project_id).order_by(Prompt.figure_number.asc())
-    )
-    return [_prompt_to_response(p) for p in result.scalars().all()]
+async def list_project_prompts(project_id: str, db: AsyncSession = Depends(get_db)):
+    await require_project(db, project_id)
+    return await PromptService(db).get_prompts_by_project(project_id)
 
 
 @router.get("/prompts/{prompt_id}", response_model=PromptResponse)
-async def get_prompt(
-    prompt_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
-    prompt: Prompt | None = result.scalar_one_or_none()
-    if prompt is None:
-        raise NotFoundException("Prompt not found")
-    return _prompt_to_response(prompt)
+async def get_prompt(prompt_id: str, db: AsyncSession = Depends(get_db)):
+    return await PromptService(db).get_prompt(prompt_id)
 
 
 @router.put("/prompts/{prompt_id}", response_model=PromptResponse)
-async def update_prompt(
-    prompt_id: str,
-    data: PromptUpdate,
-    db: AsyncSession = Depends(get_db),
-):
-    prompt = await PromptService(db).update_prompt(
+async def update_prompt(prompt_id: str, data: PromptUpdate, db: AsyncSession = Depends(get_db)):
+    return await PromptService(db).update_prompt(
         prompt_id,
         data.edited_prompt,
         expected_revision=data.expected_revision,
         figure_spec=data.figure_spec.model_dump() if data.figure_spec else None,
         spec_supplied="figure_spec" in data.model_fields_set,
     )
-    return _prompt_to_response(prompt)
 
 
 @router.get("/prompts/{prompt_id}/revisions", response_model=list[PromptRevisionResponse])
@@ -177,15 +99,5 @@ async def restore_prompt(prompt_id: str, data: PromptRestore, db: AsyncSession =
 
 
 @router.get("/prompts/{prompt_id}/status", response_model=PromptStatusResponse)
-async def get_prompt_status(
-    prompt_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
-    prompt: Prompt | None = result.scalar_one_or_none()
-    if prompt is None:
-        raise NotFoundException("Prompt not found")
-    return PromptStatusResponse(
-        id=prompt.id,
-        generation_status=prompt.generation_status,
-    )
+async def get_prompt_status(prompt_id: str, db: AsyncSession = Depends(get_db)):
+    return await PromptService(db).get_prompt(prompt_id)
