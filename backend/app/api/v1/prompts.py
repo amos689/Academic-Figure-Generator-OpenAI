@@ -22,6 +22,7 @@ from app.schemas.prompt import (
 from app.services.job_service import enqueue_job
 from app.services.prompt_generation_service import prepare_prompt_job
 from app.services.prompt_service import PromptService
+from app.services.spec_generation_service import submit_spec
 
 router = APIRouter(tags=["Prompts"])
 
@@ -91,6 +92,11 @@ async def update_prompt(prompt_id: str, data: PromptUpdate, db: AsyncSession = D
 @router.get("/prompts/{prompt_id}/revisions", response_model=list[PromptRevisionResponse])
 async def list_revisions(prompt_id: str, db: AsyncSession = Depends(get_db)):
     return await PromptService(db).revisions(prompt_id)
+
+
+@router.post("/prompts/{prompt_id}/spec-jobs", response_model=JobResponse, status_code=202)
+async def queue_spec(prompt_id: str, db: AsyncSession = Depends(get_db)):
+    return await submit_spec(db, prompt_id)
 
 
 @router.post("/prompts/{prompt_id}/restore", response_model=PromptResponse)

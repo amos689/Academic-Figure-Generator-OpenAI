@@ -151,14 +151,16 @@ class OpenAIPromptService:
             },
         }
 
-    def _create_response(self, user_message: str) -> str:
+    def _create_response(
+        self, user_message: str, schema: dict | None = None, instructions: str | None = None
+    ) -> str:
         """Synchronous SDK call split out for easy testing/mocking."""
         from openai import OpenAI  # noqa: PLC0415
 
         client = OpenAI(api_key=self.api_key, base_url=self.api_base, timeout=900, max_retries=0)
         response = client.responses.create(
             model=self.model,
-            instructions=self._build_instructions(),
+            instructions=instructions or self._build_instructions(),
             input=user_message,
             reasoning={"effort": self.reasoning_effort},
             max_output_tokens=self.max_output_tokens,
@@ -166,7 +168,7 @@ class OpenAIPromptService:
                 "format": {
                     "type": "json_schema",
                     "name": "academic_figure_prompt_batch",
-                    "schema": self.RESPONSE_SCHEMA,
+                    "schema": schema or self.RESPONSE_SCHEMA,
                     "strict": True,
                 }
             },

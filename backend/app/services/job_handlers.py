@@ -54,6 +54,7 @@ async def parse_document(job: Job, db: AsyncSession) -> dict:
 
 
 def register_handlers(runner: JobRunner) -> None:
+    from app.services.spec_generation_service import derive_spec_job
     from app.services.export_service import render_export_job
     from app.services.prompt_generation_service import generate_prompt_job
     from app.services.image_generation_service import generate_image_job
@@ -62,3 +63,4 @@ def register_handlers(runner: JobRunner) -> None:
     runner.register("prompt", generate_prompt_job, resource_failure)
     runner.register("image", generate_image_job, resource_failure)
     runner.register("export", render_export_job, resource_failure)
+    runner.register("spec", derive_spec_job, resource_failure)
