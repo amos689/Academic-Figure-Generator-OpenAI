@@ -588,9 +588,11 @@ class DocumentService:
             result = parser(content)
         except FileValidationException:
             raise
-        except Exception as exc:
-            logger.exception("Failed to parse %s document", file_type)
-            raise FileValidationException(f"Failed to parse {file_type} document: {exc}") from exc
+        except Exception:
+            logger.error("Failed to parse %s document", file_type)
+            raise FileValidationException(
+                f"Failed to parse {file_type} document. Check the file and try again."
+            ) from None
 
         logger.info(
             "Parsed %s document: %d sections, %d chars",
