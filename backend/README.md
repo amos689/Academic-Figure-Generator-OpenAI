@@ -1,46 +1,51 @@
 # Academic Figure Generator (Backend)
 
-FastAPI backend service for Academic Figure Generator.
+FastAPI service for the typed workbench: documents, prompt revisions, FigureSpec,
+image generation and editing, and editable SVG, PDF, and draw.io exports.
 
-Default AI configuration (verified against OpenAI documentation on 2026-10-02):
+Project setup and configuration: [English](../README.md) | [简体中文](../README.zh-CN.md).
 
-- Structured figure prompts: `gpt-6-astra` through the Responses API, with `reasoning.effort=max`.
-- Image generation and editing: `gpt-image-2.5-sunburst` through the Images API, with `quality=max`.
-- Prompt output budget: 32,768 tokens shared by reasoning and the final JSON response.
+## Development
 
-Configure `OPENAI_API_KEY` in your system environment. Settings resolve in this order:
-system environment, local `.env` files, then defaults in `app/config.py`. Existing model
-and quality overrides must be updated or removed to adopt the new defaults. Restart
-the backend after changing settings.
+Use Python 3.12+ and uv. From this directory:
 
-See the project documentation in [English](../README.md) or [简体中文](../README.zh-CN.md)
-for installation, upgrade instructions, supported settings, and data-privacy details.
+```bash
+uv sync --locked --extra dev
+DEBUG=true uv run --no-sync uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
 
-After pulling an upgrade, reinstall with `pip install -e .` from this directory in
-your virtual environment. This version requires `openai>=3.23.0` for the current
-model and quality parameter definitions.
+Run the same sync command after pulling dependency updates. The API is served at
+`/api/v1`; `DEBUG=true` enables [the API reference](http://localhost:8000/docs).
+
+## Jobs and Migrations
+
+Document parsing, prompt generation, images, FigureSpec generation, and exports use
+SQLite-backed jobs. The in-process runner starts with FastAPI; run one backend
+worker per database and set `MAX_CONCURRENT_JOBS` for task concurrency. The jobs API
+supports status polling, cancelling queued jobs, and retrying failed or interrupted
+attempts. Jobs left running at restart become `interrupted`.
+
+Startup applies the packaged Alembic migrations automatically. Before upgrading an
+existing database, it saves a SQLite snapshot in `migration-backups/` beside the
+database. A database already at the current revision needs no new snapshot.
 
 ## Source Map
 
 | Path | Responsibility |
 | --- | --- |
-| `app/config.py` | Environment and local-file configuration |
-| `app/api/v1/` | Projects, documents, prompts, figures, and palettes |
-| `app/services/openai_prompt_service.py` | Structured figure prompts using the Responses API |
-| `app/services/image_service.py` | Image generation, editing, and size constraints |
-| `app/services/document_service.py` | Document parsing and section extraction |
-| `tests/` | Configuration, parsing, and mocked API checks |
+| `app/api/v1/`, `app/schemas/` | Workbench endpoints and typed request/response contracts |
+| `app/services/job_service.py`, `job_handlers.py` | Persistent job lifecycle and task dispatch |
+| `app/services/document_service.py`, `context_service.py` | Parsing, sections, and source context |
+| `app/services/prompt_generation_service.py`, `image_generation_service.py` | Prompt revisions and image workflows |
+| `app/services/figure_layout_service.py`, `vector_export_service.py` | Offline layout and editable vector exports |
+| `app/core/database.py`, `app/migrations/` | SQLite setup, backups, and schema upgrades |
+| `tests/` | API, jobs, migrations, parsing, and export regression tests |
 
-## Development
-
-From this directory with the virtual environment activated:
+## Checks
 
 ```bash
-python -m pip install -e ".[dev]"
-pytest -q
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+uv run --no-sync pytest -q
+uv run --no-sync ruff check app tests
 ```
 
-Open [the API reference](http://localhost:8000/docs) after starting the server.
-The service stores data locally and has no user authentication. Keep it bound
-to localhost unless you provide the required access controls separately.
+Tests use temporary databases and mocked provider calls; no live API calls are needed.
