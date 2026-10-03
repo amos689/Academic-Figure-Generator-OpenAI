@@ -22,7 +22,7 @@ export function GenerationControls({ value, onChange, palettes, image = true, di
         {palettes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
     </Field><div className="mt-2 flex gap-1" aria-label={t('Palette colors', '配色预览')}>
-      {Object.entries(palette?.colors ?? value.custom_colors ?? {}).map(([role, color]) => <span key={role} className="h-4 w-7 rounded-sm border" title={`${role}: ${color}`} style={{ backgroundColor: color }} />)}
+      {Object.entries(value.custom_colors ?? palette?.colors ?? {}).map(([role, color]) => <span key={role} className="h-4 w-7 rounded-sm border" title={`${role}: ${color}`} style={{ backgroundColor: color }} />)}
     </div></div>
     {image && <><Field label={t('Resolution', '分辨率')}><select value={value.resolution} onChange={e => update({ resolution: e.target.value })}>
       {['1K', '2K', '4K'].map(v => <option key={v}>{v}</option>)}

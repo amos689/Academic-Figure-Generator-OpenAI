@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Save } from 'lucide-react';
 import type { ColorScheme, GenerationSettings, Project } from '../lib/types';
 import { workbenchApi } from '../lib/api';
-import { DEFAULT_SETTINGS, withPalette } from '../lib/workbench';
+import { DEFAULT_SETTINGS, settingsForPrompt, withPalette } from '../lib/workbench';
 import { useI18n } from '../lib/i18n';
 import { useResource } from '../hooks/useResource';
 import { useWorkspace } from '../hooks/useWorkspace';
@@ -62,7 +62,7 @@ function WorkspaceBody({ project, workspace, palettes, maxUploadMb, settingsErro
       </TabsList>
         <TabsContent value="prompts" forceMount className="space-y-5 data-[state=inactive]:hidden">
           {!data.prompts.length ? <Empty>{t('No prompts', '暂无提示词')}</Empty> : <><Field label={t('Figure', '配图')}><select value={currentPrompt?.id ?? ''} onChange={e => setPromptId(e.target.value)}>{data.prompts.map(prompt => <option key={prompt.id} value={prompt.id}>{prompt.figure_number}. {prompt.title || t('Untitled', '未命名')}</option>)}</select></Field>
-            {data.prompts.map(prompt => <div key={prompt.id} hidden={prompt.id !== currentPrompt?.id}><PromptEditor prompt={prompt} document={data.documents.find(d => d.id === prompt.document_id)} settings={promptSettings[prompt.id] ?? { ...settings, aspect_ratio: prompt.suggested_aspect_ratio || settings.aspect_ratio, style_preset: prompt.style_preset ?? settings.style_preset }} onSettings={value => setPromptSettings(previous => ({ ...previous, [prompt.id]: value }))} palettes={palettes} refresh={workspace.refresh} /></div>)}</>}
+            {data.prompts.map(prompt => <div key={prompt.id} hidden={prompt.id !== currentPrompt?.id}><PromptEditor prompt={prompt} document={data.documents.find(d => d.id === prompt.document_id)} settings={promptSettings[prompt.id] ?? settingsForPrompt(prompt, settings)} onSettings={value => setPromptSettings(previous => ({ ...previous, [prompt.id]: value }))} palettes={palettes} refresh={workspace.refresh} /></div>)}</>}
         </TabsContent>
         <TabsContent value="images"><ImageHistory images={data.images} refresh={workspace.refresh} maxUploadMb={maxUploadMb} /></TabsContent>
         <TabsContent value="jobs"><JobsPanel jobs={data.jobs} refresh={workspace.refresh} /></TabsContent>

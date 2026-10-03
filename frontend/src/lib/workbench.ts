@@ -1,4 +1,4 @@
-import type { ColorScheme, FigureImage, GenerationSettings, Job, Json, Prompt, Section } from './types';
+import type { Colors, ColorScheme, FigureImage, GenerationSettings, Job, Json, Prompt, Section } from './types';
 
 export const DEFAULT_SETTINGS: GenerationSettings = {
   resolution: '2K', aspect_ratio: '16:9', color_scheme: 'okabe-ito', style_preset: 'classic', profile: 'quality',
@@ -20,7 +20,23 @@ export function findPalette(palettes: ColorScheme[], value: string): ColorScheme
 
 export function withPalette(settings: GenerationSettings, palettes: ColorScheme[]): GenerationSettings {
   const palette = findPalette(palettes, settings.color_scheme);
-  return { ...settings, color_scheme: palette?.id || settings.color_scheme, custom_colors: palette?.colors ?? settings.custom_colors };
+  return { ...settings, color_scheme: palette?.id || settings.color_scheme, custom_colors: settings.custom_colors ?? palette?.colors };
+}
+
+export function settingsForPrompt(prompt: Prompt, defaults: GenerationSettings): GenerationSettings {
+  const metadata = prompt.generation_metadata ?? {};
+  const palette = metadata.palette;
+  const roles = ['primary', 'secondary', 'tertiary', 'text', 'fill', 'section_bg', 'border', 'arrow'];
+  const validPalette = palette && typeof palette === 'object' && !Array.isArray(palette)
+    && roles.every(role => typeof palette[role] === 'string' && /^#(?:[a-f\d]{3}|[a-f\d]{6})$/i.test(palette[role] as string));
+  return {
+    ...defaults,
+    aspect_ratio: prompt.suggested_aspect_ratio || defaults.aspect_ratio,
+    style_preset: prompt.style_preset ?? defaults.style_preset,
+    profile: metadata.profile === 'draft' || metadata.profile === 'quality' ? metadata.profile : defaults.profile,
+    color_scheme: typeof metadata.color_scheme === 'string' ? metadata.color_scheme : defaults.color_scheme,
+    custom_colors: validPalette ? palette as unknown as Colors : defaults.custom_colors,
+  };
 }
 
 export function imageAncestors(image: FigureImage, images: FigureImage[]): FigureImage[] {
