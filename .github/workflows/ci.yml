@@ -1,0 +1,65 @@
+name: Offline Quality Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      OPENAI_API_KEY: ""
+      OPENAI_API_BASE: http://127.0.0.1:9/v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/uv.lock
+      - name: Install backend and test dependencies
+        run: |
+          python -m pip install uv==0.12.1
+          uv sync --locked --extra dev
+      - name: Lint all backend code and tests
+        run: uv run --locked ruff check app tests
+      - name: Run offline backend tests
+        run: uv run --locked pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Lint frontend
+        run: npm run lint
+      - name: Run frontend tests
+        run: npm test
