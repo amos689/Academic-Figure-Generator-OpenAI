@@ -5,10 +5,15 @@ from __future__ import annotations
 import io
 import logging
 import re
+import zipfile
 from pathlib import PurePosixPath
 
 import fitz  # PyMuPDF
 from docx import Document as DocxDocument
+from docx.oxml.ns import qn
+from docx.table import Table, _Cell
+from docx.text.paragraph import Paragraph
+from lxml import etree
 
 from app.config import get_settings
 from app.core.exceptions import FileValidationException
@@ -28,23 +33,142 @@ _MAGIC_BYTES: dict[str, bytes] = {
     "docx": b"PK\x03\x04",  # ZIP (Office Open XML)
 }
 
+# Bound expansion before python-docx loads the package into memory.
+_MAX_DOCX_MEMBERS = 2048
+_MAX_DOCX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+_MAX_DOCX_XML_BYTES = 8 * 1024 * 1024
+
+
+def _checked_xml(archive: zipfile.ZipFile, name: str):
+    with archive.open(name) as member:
+        data = member.read(_MAX_DOCX_XML_BYTES + 1)
+    if len(data) > _MAX_DOCX_XML_BYTES:
+        raise FileValidationException("DOCX XML part exceeds the parsing size limit")
+    parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
+    root = etree.fromstring(data, parser=parser)
+    if root.getroottree().docinfo.doctype:
+        raise FileValidationException("DOCX XML must not contain a DTD or entity declarations")
+    return root
+
+
+def _validate_docx(content: bytes) -> None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            members = archive.infolist()
+            if len(members) > _MAX_DOCX_MEMBERS:
+                raise FileValidationException("DOCX contains too many archive entries")
+            names: set[str] = set()
+            expanded_size = 0
+            for member in members:
+                path = PurePosixPath(member.filename)
+                if (
+                    member.filename in names
+                    or path.is_absolute()
+                    or ".." in path.parts
+                    or "\\" in member.filename
+                    or member.flag_bits & 1
+                ):
+                    raise FileValidationException(
+                        "DOCX contains unsafe or duplicate archive entries"
+                    )
+                names.add(member.filename)
+                expanded_size += member.file_size
+            if expanded_size > _MAX_DOCX_UNCOMPRESSED_BYTES:
+                raise FileValidationException("DOCX expanded size exceeds the parsing size limit")
+            required = {"[Content_Types].xml", "_rels/.rels", "word/document.xml"}
+            if not required.issubset(names):
+                raise FileValidationException("DOCX is missing required document parts")
+
+            types = _checked_xml(archive, "[Content_Types].xml")
+            namespace = "{http://schemas.openxmlformats.org/package/2006/content-types}"
+            defaults = {
+                node.get("Extension"): node.get("ContentType", "")
+                for node in types.findall(f"{namespace}Default")
+            }
+            overrides = {
+                node.get("PartName", "").lstrip("/"): node.get("ContentType", "")
+                for node in types.findall(f"{namespace}Override")
+            }
+            for member in members:
+                if member.is_dir() or member.filename == "[Content_Types].xml":
+                    continue
+                suffix = PurePosixPath(member.filename).suffix.lower().lstrip(".")
+                content_type = overrides.get(member.filename, defaults.get(suffix, ""))
+                if suffix in {"xml", "rels"} or content_type.lower().endswith(("+xml", "/xml")):
+                    _checked_xml(archive, member.filename)
+    except FileValidationException:
+        raise
+    except (zipfile.BadZipFile, etree.LxmlError, OSError, ValueError, RuntimeError) as exc:
+        raise FileValidationException("Invalid or unsupported DOCX ZIP/XML package") from exc
+
+
+def _with_sources(result: dict, file_type: str) -> dict:
+    for index, section in enumerate(result["sections"]):
+        section["index"] = index
+        section["source_ref"] = f"section:{index}"
+        section["source"] = {
+            **section.get("source", {}),
+            "file_type": file_type,
+            "section_index": index,
+            "page_start": section.get("page_start"),
+            "page_end": section.get("page_end"),
+        }
+    result["metadata"] = {"extraction": "text", "ocr_performed": False}
+    result["warnings"] = (
+        ["No extractable text was found. OCR is not performed."]
+        if not result["full_text"].strip()
+        else []
+    )
+    return result
+
+
+def _docx_blocks(element, parent):
+    for child in element:
+        if child.tag == qn("w:p"):
+            yield Paragraph(child, parent)
+        elif child.tag == qn("w:tbl"):
+            yield Table(child, parent)
+        elif child.tag in {qn("w:sdt"), qn("w:sdtContent"), qn("w:customXml")}:
+            yield from _docx_blocks(child, parent)
+
+
+def _table_rows(table: Table) -> list[list[str]]:
+    rows = []
+    for row in table.rows:
+        cells = []
+        # Physical cells avoid duplicating horizontally/vertically merged text.
+        for cell_element in row._tr.tc_lst:
+            cell = _Cell(cell_element, table)
+            parts = []
+            for block in _docx_blocks(cell_element, cell):
+                if isinstance(block, Paragraph):
+                    parts.append(block.text.strip())
+                else:
+                    parts.append("\n".join("\t".join(values) for values in _table_rows(block)))
+            cells.append("\n".join(part for part in parts if part))
+        rows.append(cells)
+    return rows
+
 
 class DocumentService:
-    """Parse PDF, DOCX, and TXT files into structured sections."""
+    """Parse documents with stable, zero-based section indices and source metadata.
+
+    Existing result fields are retained. ``metadata`` and ``warnings`` describe
+    text extraction limitations; this service does not perform OCR.
+    """
 
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
 
-    def validate_file(
-        self, filename: str, content: bytes, file_size: int
-    ) -> str:
+    def validate_file(self, filename: str, content: bytes, file_size: int) -> str:
         """Validate a file and return its detected type string.
 
         Checks:
         1. File extension is among the supported types.
         2. File size does not exceed the configured maximum.
         3. Magic bytes match the claimed extension (for binary types).
+        4. DOCX ZIP/XML parts are bounded and contain no DTDs or unsafe entries.
 
         Returns
         -------
@@ -69,11 +193,16 @@ class DocumentService:
             )
 
         # --- size check ---
-        if file_size > max_bytes:
+        actual_size = max(file_size, len(content))
+        if actual_size > max_bytes:
             raise FileValidationException(
-                f"File size ({file_size / 1024 / 1024:.1f} MB) exceeds the "
+                f"File size ({actual_size / 1024 / 1024:.1f} MB) exceeds the "
                 f"maximum allowed ({settings.MAX_UPLOAD_SIZE_MB} MB)"
             )
+        if file_size != len(content):
+            raise FileValidationException("Declared file size does not match the supplied content")
+        if not content:
+            raise FileValidationException("The uploaded file is empty")
 
         # --- magic bytes check (binary formats only) ---
         expected_magic = _MAGIC_BYTES.get(file_type)
@@ -84,6 +213,8 @@ class DocumentService:
                     f"'{suffix}' (magic bytes mismatch)"
                 )
 
+        if file_type == "docx":
+            _validate_docx(content)
         return file_type
 
     # ------------------------------------------------------------------
@@ -130,7 +261,7 @@ class DocumentService:
 
         if not all_spans:
             doc.close()
-            return {"full_text": "", "sections": [], "page_count": page_count}
+            return _with_sources({"full_text": "", "sections": [], "page_count": page_count}, "pdf")
 
         # Determine body font size (the most common size)
         size_counts: dict[float, int] = {}
@@ -163,7 +294,7 @@ class DocumentService:
                     heading_level = 2
                 else:
                     heading_level = 3
-            elif sp["size"] > body_size and (sp["flags"] & 2 ** 4):
+            elif sp["size"] > body_size and (sp["flags"] & 2**4):
                 # Bold text slightly larger than body
                 is_heading = True
                 heading_level = 3
@@ -172,7 +303,6 @@ class DocumentService:
                 # Finish previous section
                 if current_section is not None:
                     current_section["content"] = current_section["content"].strip()
-                    current_section["page_end"] = sp["page"]
                     sections.append(current_section)
 
                 current_section = {
@@ -203,11 +333,14 @@ class DocumentService:
         doc.close()
         full_text = " ".join(full_text_parts)
 
-        return {
-            "full_text": full_text,
-            "sections": sections,
-            "page_count": page_count,
-        }
+        return _with_sources(
+            {
+                "full_text": full_text,
+                "sections": sections,
+                "page_count": page_count,
+            },
+            "pdf",
+        )
 
     # ------------------------------------------------------------------
     # DOCX parsing
@@ -217,26 +350,36 @@ class DocumentService:
         """Parse a DOCX file using python-docx.
 
         Uses Word heading styles (``Heading 1``, ``Heading 2``, etc.) to
-        identify section structure.
+        identify section structure. Paragraphs and tables remain in document
+        order. Table text uses tabs between cells and newlines between rows;
+        ``blocks`` retains structured cells and exact section-content offsets.
 
         Returns
         -------
         dict
             ``{"full_text": str, "sections": list[dict], "page_count": None}``
         """
+        _validate_docx(content)
         doc = DocxDocument(io.BytesIO(content))
 
         sections: list[dict] = []
         current_section: dict | None = None
         full_text_parts: list[str] = []
+        section_parts: list[str] = []
+        section_length = 0
 
-        for para in doc.paragraphs:
-            text = para.text.strip()
-            if not text:
+        for block_index, block in enumerate(_docx_blocks(doc.element.body, doc)):
+            rows = _table_rows(block) if isinstance(block, Table) else None
+            text = (
+                "\n".join("\t".join(row) for row in rows)
+                if rows is not None
+                else block.text.strip()
+            )
+            if not text.strip():
                 continue
 
             full_text_parts.append(text)
-            style_name = para.style.name if para.style else ""
+            style_name = block.style.name if isinstance(block, Paragraph) and block.style else ""
 
             # Detect heading paragraphs
             is_heading = False
@@ -257,8 +400,11 @@ class DocumentService:
             if is_heading:
                 # Close previous section
                 if current_section is not None:
-                    current_section["content"] = current_section["content"].strip()
+                    current_section["content"] = "\n".join(section_parts)
                     sections.append(current_section)
+
+                section_parts = []
+                section_length = 0
 
                 current_section = {
                     "title": text,
@@ -266,6 +412,8 @@ class DocumentService:
                     "content": "",
                     "page_start": None,
                     "page_end": None,
+                    "blocks": [],
+                    "source": {"heading_block_index": block_index},
                 }
             else:
                 if current_section is None:
@@ -275,21 +423,49 @@ class DocumentService:
                         "content": "",
                         "page_start": None,
                         "page_end": None,
+                        "blocks": [],
                     }
-                current_section["content"] += text + "\n"
+                start = section_length + bool(section_parts)
+                section_parts.append(text)
+                section_length = start + len(text)
+                source_block = {
+                    "type": "table" if rows is not None else "paragraph",
+                    "block_index": block_index,
+                    "source_ref": f"docx:block:{block_index}",
+                    "start": start,
+                    "end": start + len(text),
+                }
+                if rows is not None:
+                    source_block["rows"] = rows
+                    source_block["row_spans"] = []
+                    row_start = start
+                    for row_index, row in enumerate(rows):
+                        row_end = row_start + len("\t".join(row))
+                        source_block["row_spans"].append(
+                            {
+                                "row_index": row_index,
+                                "start": row_start,
+                                "end": row_end,
+                            }
+                        )
+                        row_start = row_end + 1
+                current_section["blocks"].append(source_block)
 
         # Flush last section
         if current_section is not None:
-            current_section["content"] = current_section["content"].strip()
+            current_section["content"] = "\n".join(section_parts)
             sections.append(current_section)
 
         full_text = "\n".join(full_text_parts)
 
-        return {
-            "full_text": full_text,
-            "sections": sections,
-            "page_count": None,
-        }
+        return _with_sources(
+            {
+                "full_text": full_text,
+                "sections": sections,
+                "page_count": None,
+            },
+            "docx",
+        )
 
     # ------------------------------------------------------------------
     # TXT / Markdown parsing
@@ -370,11 +546,14 @@ class DocumentService:
                         }
                     )
 
-        return {
-            "full_text": text,
-            "sections": sections,
-            "page_count": None,
-        }
+        return _with_sources(
+            {
+                "full_text": text,
+                "sections": sections,
+                "page_count": None,
+            },
+            "txt",
+        )
 
     # ------------------------------------------------------------------
     # Unified parse entry point
@@ -411,9 +590,7 @@ class DocumentService:
             raise
         except Exception as exc:
             logger.exception("Failed to parse %s document", file_type)
-            raise FileValidationException(
-                f"Failed to parse {file_type} document: {exc}"
-            ) from exc
+            raise FileValidationException(f"Failed to parse {file_type} document: {exc}") from exc
 
         logger.info(
             "Parsed %s document: %d sections, %d chars",
