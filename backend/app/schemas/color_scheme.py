@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator
+
+from app.core.prompts.color_schemes import COLOR_SCHEME_DISPLAY_NAMES
 
 
 class ColorValues(BaseModel):
@@ -39,6 +41,15 @@ class ColorSchemeResponse(BaseModel):
     colors: dict
     is_default: bool
     created_at: datetime
+
+    @computed_field
+    @property
+    def slug(self) -> str | None:
+        if self.type != "preset":
+            return None
+        return next(
+            (slug for slug, name in COLOR_SCHEME_DISPLAY_NAMES.items() if name == self.name), None
+        )
 
 
 class ColorSchemeUpdate(BaseModel):
