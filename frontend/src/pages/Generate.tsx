@@ -1,181 +1,74 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw, Sparkles } from 'lucide-react';
+import { workbenchApi } from '../lib/api';
+import { DEFAULT_SETTINGS, activeStatus, newRequestKey, withPalette } from '../lib/workbench';
+import type { FigureImage, Job } from '../lib/types';
+import { useI18n } from '../lib/i18n';
+import { useAction } from '../hooks/useAction';
+import { useResource } from '../hooks/useResource';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Loader2, Wand2, Image as ImageIcon, Download, AlertCircle } from 'lucide-react';
-import api from '../lib/api';
-import { fetchAuthedBlob } from '../lib/blob';
-import { getApiErrorMessage } from '../lib/apiError';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { ErrorNotice, Field, IconButton, Loading } from '../components/workbench/Common';
+import { GenerationControls } from '../components/workbench/GenerationControls';
+import { ImageHistory } from '../components/workbench/ImageHistory';
+import { JobsPanel } from '../components/workbench/JobsPanel';
+
+const savedProject = () => { try { return localStorage.getItem('workbench.directProject') || ''; } catch { return ''; } };
 
 export function Generate() {
-   const [prompt, setPrompt] = useState('');
-   const [aspectRatio, setAspectRatio] = useState('16:9');
-   const [isGenerating, setIsGenerating] = useState(false);
-   const [error, setError] = useState<string | null>(null);
-   const [resultImage, setResultImage] = useState<{ url: string; filename: string; status: 'pending' | 'completed' | 'failed' } | null>(null);
-   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-   const blobUrlRef = useRef<string | null>(null);
+  const { t } = useI18n();
+  const [prompt, setPrompt] = useState('');
+  const [projectId, setProjectId] = useState(savedProject);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settingsProject, setSettingsProject] = useState('');
+  const [receipt, setReceipt] = useState('');
+  const [poll, setPoll] = useState(0);
+  const action = useAction();
+  const projects = useResource(workbenchApi.projects, t('Could not load projects.', '无法加载项目。'));
+  const palettes = useResource(workbenchApi.palettes, t('Could not load palettes.', '无法加载配色。'));
+  const config = useResource(workbenchApi.configuration, t('Could not load effective settings.', '无法加载有效配置。'));
+  const load = useCallback(async (signal: AbortSignal): Promise<{ images: FigureImage[]; jobs: Job[] }> => {
+    if (!projectId) return { images: [], jobs: (await workbenchApi.jobs(undefined, signal)).filter(job => job.kind === 'image') };
+    const [images, jobs] = await Promise.all([workbenchApi.images(projectId, signal), workbenchApi.jobs(projectId, signal)]);
+    if (!signal.aborted) setPoll(images.some(image => activeStatus(image.generation_status)) || jobs.some(job => activeStatus(job.status)) ? 5000 : 0);
+    return { images, jobs };
+  }, [projectId]);
+  const history = useResource(load, t('Could not load history.', '无法加载历史记录。'), poll);
+  const loadReceipt = useCallback(async (signal: AbortSignal) => {
+    if (!receipt) return null;
+    const image = await workbenchApi.image(receipt, signal);
+    if (!signal.aborted && image.project_id) { setProjectId(image.project_id); setReceipt(''); }
+    return image;
+  }, [receipt]);
+  const accepted = useResource(loadReceipt, t('Request accepted; image details are temporarily unavailable.', '请求已接受，图像详情暂时不可用。'));
+  const selectedProject = projects.data?.items.find(project => project.id === projectId);
+  if (selectedProject && settingsProject !== projectId) {
+    setSettingsProject(projectId);
+    setSettings(previous => ({ ...previous, color_scheme: selectedProject.color_scheme, custom_colors: selectedProject.custom_colors ?? undefined, style_preset: selectedProject.style_preset ?? 'classic' }));
+  }
+  useEffect(() => { try { localStorage.setItem('workbench.directProject', projectId); } catch { /* Session-only preference. */ } }, [projectId]);
 
-   useEffect(() => {
-      return () => {
-         if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-            blobUrlRef.current = null;
-         }
-      };
-   }, []);
-
-   const stopPolling = useCallback(() => {
-      if (pollTimerRef.current) {
-         clearTimeout(pollTimerRef.current);
-         pollTimerRef.current = null;
-      }
-   }, []);
-
-   const pollStatus = useCallback(async (imageId: string) => {
-      try {
-         const statusRes = await api.get(`/images/${imageId}/status`);
-         const status = statusRes.data.generation_status;
-
-         if (status === 'completed') {
-            const { blob, ext } = await fetchAuthedBlob(`/images/${imageId}/download`);
-            const filename = `academic-figure.${ext}`;
-            const blobUrl = URL.createObjectURL(blob);
-
-            if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-            blobUrlRef.current = blobUrl;
-
-            setResultImage({
-               url: blobUrl,
-               filename,
-               status: 'completed',
-            });
-            setIsGenerating(false);
-         } else if (status === 'failed') {
-            setResultImage({ url: '', filename: 'academic-figure.png', status: 'failed' });
-            setError(statusRes.data.generation_error || '图片生成失败，请稍后重试');
-            setIsGenerating(false);
-         } else {
-            pollTimerRef.current = setTimeout(() => pollStatus(imageId), 3000);
-         }
-      } catch {
-         setError('查询生成状态失败');
-         setIsGenerating(false);
-      }
-   }, []);
-
-   const handleGenerate = async () => {
-      if (!prompt.trim()) return;
-      stopPolling();
-      setIsGenerating(true);
-      setResultImage({ url: '', filename: 'academic-figure.png', status: 'pending' });
-      setError(null);
-
-      try {
-         const response = await api.post('/images/generate-direct', {
-            prompt,
-            aspect_ratio: aspectRatio,
-         });
-
-         const imageId = response.data.id;
-         pollTimerRef.current = setTimeout(() => pollStatus(imageId), 3000);
-      } catch (e: any) {
-         console.error(e);
-         const msg = getApiErrorMessage(e, '请求失败，请检查网络连接');
-         setError(msg);
-         setResultImage(null);
-         setIsGenerating(false);
-      }
-   };
-
-   return (
-      <div className="max-w-4xl mx-auto space-y-6">
-         <div>
-            <h1 className="text-3xl font-bold tracking-tight">直接生成模式</h1>
-            <p className="text-muted-foreground mt-1">跳过文档解析环节，直接输入您的需求即刻生成学术配图。</p>
-         </div>
-
-         {error && (
-            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-               <AlertCircle className="h-4 w-4 shrink-0" />
-               <span>{error}</span>
-            </div>
-         )}
-
-         <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-6">
-               <Card>
-                  <CardHeader>
-                     <CardTitle>配图描述</CardTitle>
-                     <CardDescription>用文字详细描述您想要生成的论文配图。</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                     <Textarea
-                        placeholder="例如：绘制一个基于Transformer的跨模态融合架构图。包含两个分支：视觉编码器和文本编码器，它们在中间层通过自注意力机制进行跨模态交互，最后输出分类结果..."
-                        className="min-h-[200px]"
-                        value={prompt}
-                        onChange={e => setPrompt(e.target.value)}
-                     />
-                  </CardContent>
-                  <CardFooter className="flex items-center justify-end gap-3 flex-wrap border-t p-4">
-                     <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                        <SelectTrigger className="w-[120px]">
-                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                           <SelectItem value="16:9">16:9 宽屏</SelectItem>
-                           <SelectItem value="4:3">4:3 标准</SelectItem>
-                           <SelectItem value="1:1">1:1 方形</SelectItem>
-                        </SelectContent>
-                     </Select>
-                     <Button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()}>
-                        {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-                        {isGenerating ? '生成中...' : '生成配图'}
-                     </Button>
-                  </CardFooter>
-               </Card>
-            </div>
-
-            <div className="space-y-6">
-               <Card className="h-full min-h-[400px] flex flex-col">
-                  <CardHeader>
-                     <CardTitle>生成预览</CardTitle>
-                     <CardDescription>您生成的配图将在此处显示。</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex items-center justify-center p-6 bg-muted/10 border-t">
-                     {isGenerating ? (
-                        <div className="text-center">
-                           <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                           <p className="text-sm text-muted-foreground mt-4">AI 正在努力绘制中，请耐心等待...</p>
-                        </div>
-                     ) : resultImage?.status === 'completed' && resultImage.url ? (
-                        <img src={resultImage.url} alt="Generated result" className="rounded shadow-md max-h-full max-w-full object-contain" />
-                     ) : resultImage?.status === 'failed' ? (
-                        <div className="text-center">
-                           <AlertCircle className="h-12 w-12 text-destructive/50 mx-auto" />
-                           <p className="text-sm text-destructive mt-4">生成失败，请修改描述后重试</p>
-                        </div>
-                     ) : (
-                        <div className="text-center">
-                           <ImageIcon className="h-12 w-12 text-muted-foreground/50 mx-auto" />
-                           <p className="text-sm text-muted-foreground mt-4">暂无生成的图片内容</p>
-                        </div>
-                     )}
-                  </CardContent>
-                  {resultImage?.status === 'completed' && resultImage.url && (
-                     <CardFooter className="bg-muted/30 pt-4 border-t flex justify-end">
-                        <Button variant="secondary" asChild>
-                           <a href={resultImage.url} download={resultImage.filename} target="_blank" rel="noopener noreferrer">
-                              <Download className="w-4 h-4 mr-2" />
-                              下载高清原图
-                           </a>
-                        </Button>
-                     </CardFooter>
-                  )}
-               </Card>
-            </div>
-         </div>
-      </div>
-   );
+  return <div className="space-y-5"><header className="flex items-center justify-between gap-3 border-b pb-4"><h1 className="text-xl font-semibold">{t('Direct generation', '直接生成')}</h1><IconButton label={t('Refresh history', '刷新历史')} disabled={history.refreshing} onClick={() => { void history.refresh(); void accepted.refresh(); void projects.refresh(); }}><RefreshCw className={`h-4 w-4 ${history.refreshing ? 'animate-spin' : ''}`} /></IconButton></header>
+    <ErrorNotice message={projects.error || palettes.error || config.error || history.error || accepted.error} />
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]"><form className="min-w-0 space-y-4 xl:border-r xl:pr-5" onSubmit={e => {
+      e.preventDefault();
+      void action.run(async () => {
+        const response = await workbenchApi.directImage({ ...withPalette(settings, palettes.data ?? []), prompt: prompt.trim(), ...(projectId ? { project_id: projectId } : {}), idempotency_key: newRequestKey() });
+        setReceipt(response.id);
+        await history.refresh();
+      }, true);
+    }}>
+      <Field label={t('Project', '项目')}><select value={projectId} disabled={action.pending} onChange={e => {
+        setReceipt(''); setProjectId(e.target.value);
+        const project = projects.data?.items.find(p => p.id === e.target.value);
+        if (project) setSettings(previous => ({ ...previous, color_scheme: project.color_scheme, custom_colors: project.custom_colors ?? undefined, style_preset: project.style_preset ?? 'classic' }));
+      }}><option value="">{t('Default direct-generation project', '默认直接生成项目')}</option>{projectId && !projects.data?.items.some(p => p.id === projectId) && <option value={projectId}>{projectId}</option>}{projects.data?.items.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+      <Field label={t('Prompt', '提示词')}><Textarea rows={12} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={60000} required disabled={action.pending} /></Field>
+      <GenerationControls value={settings} onChange={setSettings} palettes={palettes.data ?? []} disabled={action.pending} />
+      <ErrorNotice message={action.error} unknown={action.unknown} />
+      {!!receipt && <p role="status" className="break-all text-xs text-muted-foreground">{t('Accepted image', '已接受图像')}: {receipt}</p>}
+      <Button type="submit" disabled={action.pending || !prompt.trim()}><Sparkles className="mr-2 h-4 w-4" />{t('Generate image', '生成图像')}</Button>
+    </form><div className="min-w-0">{history.loading ? <Loading /> : <Tabs defaultValue="images"><TabsList><TabsTrigger value="images">{t('Images', '图像')}</TabsTrigger><TabsTrigger value="jobs">{t('Jobs', '任务')}</TabsTrigger></TabsList><TabsContent value="images"><ImageHistory key={projectId} images={history.data?.images ?? []} refresh={history.refresh} maxUploadMb={config.data?.max_upload_size_mb} /></TabsContent><TabsContent value="jobs"><JobsPanel jobs={history.data?.jobs ?? []} refresh={history.refresh} /></TabsContent></Tabs>}</div></div>
+  </div>;
 }
