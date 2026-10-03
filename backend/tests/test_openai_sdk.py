@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import base64
 import json
+import io
 from email import policy
 from email.parser import BytesParser
 from unittest.mock import patch
 
 import httpx2
 import openai
+from PIL import Image
 
 from app.config import Settings, get_settings
 from app.services.image_service import ImageService
@@ -24,7 +26,10 @@ def test_sdk_serializes_latest_models_and_max_quality(monkeypatch):
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     get_settings.cache_clear()
     requests: list[httpx2.Request] = []
-    image_base64 = base64.b64encode(b"mock-image").decode("ascii")
+    output = io.BytesIO()
+    Image.new("RGB", (32, 32)).save(output, format="PNG")
+    image_bytes = output.getvalue()
+    image_base64 = base64.b64encode(image_bytes).decode("ascii")
 
     def handle(request: httpx2.Request) -> httpx2.Response:
         request.read()
@@ -79,7 +84,7 @@ def test_sdk_serializes_latest_models_and_max_quality(monkeypatch):
             assert (
                 images.generate_image(
                     "academic diagram",
-                    reference_image_bytes=b"reference",
+                    reference_image_bytes=image_bytes,
                     edit_instruction="pastel",
                 )["image_base64"]
                 == image_base64
@@ -108,4 +113,4 @@ def test_sdk_serializes_latest_models_and_max_quality(monkeypatch):
     }
     assert fields["model"] == b"gpt-image-2.5-sunburst"
     assert fields["quality"] == b"max"
-    assert fields["image"] == b"reference"
+    assert fields["image"] == image_bytes

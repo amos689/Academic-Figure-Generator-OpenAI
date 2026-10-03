@@ -10,6 +10,8 @@ from typing import Any
 
 from app.config import get_settings
 from app.core.exceptions import ExternalAPIException
+from app.core.privacy import public_error
+from app.services.upload_service import inspect_image, reference_png, validate_mask
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +49,19 @@ class ImageService:
     MAX_ASPECT_RATIO = 3.0
     SIZE_MULTIPLE = 16
 
-    def __init__(self, api_key: str | None = None, api_base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        api_base_url: str | None = None,
+        *,
+        model: str | None = None,
+        quality: str | None = None,
+    ) -> None:
         settings = get_settings()
         self.api_key = api_key or settings.OPENAI_API_KEY
         self.api_base = (api_base_url or settings.OPENAI_API_BASE).rstrip("/")
-        self.model = settings.OPENAI_IMAGE_MODEL
-        self.quality = settings.OPENAI_IMAGE_QUALITY
+        self.model = model or settings.OPENAI_IMAGE_MODEL
+        self.quality = quality or settings.OPENAI_IMAGE_QUALITY
 
         if not self.api_key:
             raise ExternalAPIException(
@@ -68,8 +77,16 @@ class ImageService:
         aspect_ratio: str = "16:9",
         reference_image_bytes: bytes | None = None,
         edit_instruction: str | None = None,
+        mask_image_bytes: bytes | None = None,
     ) -> dict:
         """Generate or edit an image via OpenAI synchronously."""
+        if resolution not in self.RESOLUTION_AREA_MAP or aspect_ratio not in self.ASPECT_RATIO_MAP:
+            raise ValueError("Unsupported resolution or aspect ratio")
+        if mask_image_bytes is not None:
+            if reference_image_bytes is None:
+                raise ValueError("A mask requires a reference image")
+            validate_mask(reference_image_bytes, mask_image_bytes)
+            reference_image_bytes = reference_png(reference_image_bytes)
         width, height = self._calculate_dimensions(resolution, aspect_ratio)
         size_str = f"{width}x{height}"
         timeout = self.TIMEOUT_MAP.get(resolution, 600)
@@ -83,6 +100,7 @@ class ImageService:
                     edit_instruction=edit_instruction,
                     size=size_str,
                     timeout=timeout,
+                    mask_image_bytes=mask_image_bytes,
                 )
             else:
                 result = self._generate_image(
@@ -92,13 +110,18 @@ class ImageService:
                 )
         except Exception as exc:
             duration_ms = int((time.monotonic() - start_time) * 1000)
-            logger.error("OpenAI image API failed after %d ms: %s", duration_ms, exc)
-            raise ExternalAPIException("OpenAI", f"Image request failed: {exc}") from exc
+            logger.error(
+                "OpenAI image API failed after %d ms (%s)", duration_ms, type(exc).__name__
+            )
+            raise ExternalAPIException("OpenAI", public_error(exc)) from exc
 
         duration_ms = int((time.monotonic() - start_time) * 1000)
         image_base64 = self._extract_image_base64(result)
         if not image_base64:
             raise ExternalAPIException("OpenAI", "Empty base64 image data in response")
+        actual = inspect_image(self.image_bytes_from_base64(image_base64))
+        width, height = actual["width"], actual["height"]
+        raw = result if isinstance(result, dict) else result.model_dump()
 
         logger.info(
             "OpenAI image generated in %d ms: %dx%d (resolution=%s, aspect=%s)",
@@ -113,18 +136,32 @@ class ImageService:
             "width": width,
             "height": height,
             "duration_ms": duration_ms,
+            "format": actual["format"].lower(),
+            "generation_metadata": {
+                "model": raw.get("model") or self.model,
+                "quality": self.quality,
+                "requested_size": size_str,
+                "actual_size": f"{width}x{height}",
+                "usage": raw.get("usage"),
+                "request_id": getattr(result, "_request_id", None),
+                "operation": "edit" if reference_image_bytes else "generate",
+                "mask_used": mask_image_bytes is not None,
+            },
         }
 
     def _generate_image(self, prompt: str, size: str, timeout: int) -> Any:
         from openai import OpenAI  # noqa: PLC0415
 
-        client = OpenAI(api_key=self.api_key, base_url=self.api_base, timeout=timeout)
+        client = OpenAI(
+            api_key=self.api_key, base_url=self.api_base, timeout=timeout, max_retries=0
+        )
         return client.images.generate(
             model=self.model,
             prompt=prompt,
             size=size,
             quality=self.quality,
             n=1,
+            output_format="png",
         )
 
     def _edit_image(
@@ -134,6 +171,7 @@ class ImageService:
         edit_instruction: str | None,
         size: str,
         timeout: int,
+        mask_image_bytes: bytes | None = None,
     ) -> Any:
         if not reference_image_bytes:
             raise ValueError("reference_image_bytes is required for image editing")
@@ -146,14 +184,25 @@ class ImageService:
                 f"{edit_instruction.strip()}\n\nOriginal prompt context:\n{prompt}"
             ).strip()
 
-        client = OpenAI(api_key=self.api_key, base_url=self.api_base, timeout=timeout)
+        image_info = inspect_image(reference_image_bytes)
+        extension = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}[image_info["format"]]
+        extra = (
+            {"mask": ("mask.png", mask_image_bytes, "image/png")}
+            if mask_image_bytes is not None
+            else {}
+        )
+        client = OpenAI(
+            api_key=self.api_key, base_url=self.api_base, timeout=timeout, max_retries=0
+        )
         return client.images.edit(
             model=self.model,
-            image=("reference.png", reference_image_bytes, "image/png"),
+            image=(f"reference.{extension}", reference_image_bytes, image_info["mime_type"]),
             prompt=combined_prompt,
             size=size,
             quality=self.quality,
             n=1,
+            output_format="png",
+            **extra,
         )
 
     @classmethod
@@ -193,9 +242,7 @@ class ImageService:
 
     @staticmethod
     def _extract_image_base64(result: Any) -> str:
-        data = result.get("data", []) if isinstance(result, dict) else getattr(
-            result, "data", []
-        )
+        data = result.get("data", []) if isinstance(result, dict) else getattr(result, "data", [])
         if not data:
             raise ExternalAPIException("OpenAI", "No image data returned in response")
 
@@ -207,7 +254,7 @@ class ImageService:
     @staticmethod
     def image_bytes_from_base64(b64_string: str) -> bytes:
         """Decode a base64-encoded image string to raw bytes."""
-        return base64.b64decode(b64_string)
+        return base64.b64decode(b64_string, validate=True)
 
     @staticmethod
     def image_size_bytes(b64_string: str) -> int:

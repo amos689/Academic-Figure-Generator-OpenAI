@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import base64
+import io
 import sys
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 
 from app.config import get_settings
 from app.core.exceptions import ExternalAPIException
@@ -19,8 +21,14 @@ def clear_settings_cache(monkeypatch):
     get_settings.cache_clear()
 
 
+def _png(mode="RGB", size=(32, 32)):
+    output = io.BytesIO()
+    Image.new(mode, size).save(output, format="PNG")
+    return output.getvalue()
+
+
 def _install_fake_openai(monkeypatch, calls: list[tuple[str, dict]]):
-    encoded = base64.b64encode(b"fake-image").decode("ascii")
+    encoded = base64.b64encode(_png()).decode("ascii")
 
     class FakeImages:
         def generate(self, **kwargs):
@@ -67,16 +75,29 @@ def test_edit_image_uses_openai_edit(monkeypatch):
     service = ImageService(api_key="test-key")
     service.generate_image(
         "original prompt",
-        reference_image_bytes=b"reference",
+        reference_image_bytes=_png(),
         edit_instruction="make labels larger",
     )
 
     edit_call = [kwargs for name, kwargs in calls if name == "edit"][0]
     assert edit_call["model"] == "gpt-image-2.5-sunburst"
     assert edit_call["quality"] == "max"
-    assert edit_call["image"] == ("reference.png", b"reference", "image/png")
+    assert edit_call["image"] == ("reference.png", _png(), "image/png")
     assert "make labels larger" in edit_call["prompt"]
     assert "original prompt" in edit_call["prompt"]
+
+
+def test_mask_and_actual_dimensions_are_recorded(monkeypatch):
+    calls = []
+    _install_fake_openai(monkeypatch, calls)
+    result = ImageService(api_key="test-key").generate_image(
+        "diagram", reference_image_bytes=_png(), mask_image_bytes=_png("RGBA")
+    )
+    edit = next(kwargs for name, kwargs in calls if name == "edit")
+    assert edit["mask"][2] == "image/png"
+    assert result["width"] == result["height"] == 32
+    assert result["generation_metadata"]["mask_used"] is True
+    assert next(kwargs for name, kwargs in calls if name == "client")["max_retries"] == 0
 
 
 def test_missing_openai_key_fails(monkeypatch):
