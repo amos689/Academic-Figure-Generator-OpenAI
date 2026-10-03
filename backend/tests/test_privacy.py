@@ -3,6 +3,7 @@ import logging
 import httpx
 import pytest
 from fastapi import FastAPI
+from uvicorn.logging import AccessFormatter
 
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import setup_middleware
@@ -59,3 +60,27 @@ def test_provider_diagnostics_are_sanitized():
     )
     assert SecretRedactingFilter().filter(record)
     assert "fixture-secret" not in record.getMessage()
+
+
+def test_access_log_redaction_preserves_uvicorn_formatting():
+    credential = "sk-" + "demo-only-" * 4
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        "",
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        ("127.0.0.1:8000", "GET", f"/test?token={credential}", "1.1", 200),
+        None,
+    )
+    privacy_filter = SecretRedactingFilter()
+    assert privacy_filter.filter(record)
+    assert privacy_filter.filter(record)
+    formatter = AccessFormatter(
+        '%(client_addr)s - "%(request_line)s" %(status_code)s', use_colors=False
+    )
+    rendered = formatter.format(record)
+    assert credential not in rendered
+    assert "[REDACTED]" in rendered
+    assert "200 OK" in rendered
+    assert len(record.args) == 5

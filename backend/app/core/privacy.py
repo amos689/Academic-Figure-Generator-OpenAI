@@ -33,8 +33,15 @@ def public_error(exc: Exception) -> str:
 
 class SecretRedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = redact_secrets(record.getMessage())
-        record.args = ()
+        if record.name == "uvicorn.access" and isinstance(record.args, tuple):
+            # AccessFormatter reads the five positional fields after filtering.
+            record.msg = redact_secrets(str(record.msg))
+            record.args = tuple(
+                redact_secrets(value) if isinstance(value, str) else value for value in record.args
+            )
+        else:
+            record.msg = redact_secrets(record.getMessage())
+            record.args = ()
         # Provider tracebacks can embed an echoed request body or authorization header.
         if record.exc_info:
             record.msg += f" ({record.exc_info[0].__name__})"
