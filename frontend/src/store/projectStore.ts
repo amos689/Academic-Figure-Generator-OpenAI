@@ -1,17 +1,6 @@
 import { create } from 'zustand';
-
-export interface Project {
-    id: number;
-    name: string;
-    description: string | null;
-    paper_field: string;
-    color_scheme: string;
-    status: string;
-    created_at: string;
-    document_count: number;
-    prompt_count: number;
-    image_count: number;
-}
+import type { Project } from '../lib/types';
+export type { Project } from '../lib/types';
 
 interface ProjectState {
     currentProject: Project | null;

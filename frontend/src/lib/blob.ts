@@ -9,12 +9,12 @@ function extFromContentType(contentType: string): string {
     return 'bin';
 }
 
-export async function fetchAuthedBlob(url: string): Promise<{
+export async function fetchAuthedBlob(url: string, signal?: AbortSignal): Promise<{
     blob: Blob;
     contentType: string;
     ext: string;
 }> {
-    const res = await api.get(url, { responseType: 'blob' });
+    const res = await api.get<Blob>(url, { responseType: 'blob', signal });
     const contentType =
         (res.headers?.['content-type'] as string | undefined) || (res.data?.type as string | undefined) || '';
     const ext = extFromContentType(contentType);
@@ -36,4 +36,3 @@ export function triggerBrowserDownload(blob: Blob, filename: string) {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }
 }
-

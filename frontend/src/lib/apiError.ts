@@ -1,48 +1,25 @@
-export function getApiErrorMessage(error: any, fallback: string): string {
-    const data = error?.response?.data;
-    const detail = data?.detail;
+import axios from 'axios';
 
-    const toText = (value: any): string | null => {
-        if (value == null) return null;
-        if (typeof value === 'string') return value;
-        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-
-        if (Array.isArray(value)) {
-            const parts = value
-                .map((v) => {
-                    if (typeof v === 'string') return v;
-                    if (v && typeof v === 'object') {
-                        if (typeof v.msg === 'string') return v.msg;
-                        if (typeof v.message === 'string') return v.message;
-                    }
-                    try {
-                        return JSON.stringify(v);
-                    } catch {
-                        return String(v);
-                    }
-                })
-                .filter(Boolean);
-            return parts.length ? parts.join('; ') : null;
-        }
-
-        if (value && typeof value === 'object') {
-            if (typeof value.msg === 'string') return value.msg;
-            if (typeof value.message === 'string') return value.message;
-            try {
-                return JSON.stringify(value);
-            } catch {
-                return String(value);
-            }
-        }
-
-        return null;
-    };
-
-    return (
-        toText(detail) ||
-        toText(data?.message) ||
-        toText(error?.message) ||
-        fallback
-    );
+export function redactText(text: string): string {
+  return text.replace(/\bsk-[\w-]+/gi, '[redacted]').replace(/Bearer\s+[\w.+/-]+/gi, 'Bearer [redacted]');
 }
 
+function errorText(value: unknown): string | null {
+  if (typeof value === 'string') return redactText(value);
+  if (Array.isArray(value)) return value.map(errorText).filter(Boolean).join('; ') || null;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return errorText(record.msg ?? record.message);
+  }
+  return null;
+}
+
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    return errorText(error.response?.data?.detail) || errorText(error.response?.data?.message) || fallback;
+  }
+  return error instanceof Error ? redactText(error.message) : fallback;
+}
+
+export const isRevisionConflict = (error: unknown) => axios.isAxiosError(error) && error.response?.status === 409;
+export const isUnknownOutcome = (error: unknown) => axios.isAxiosError(error) && (!error.response || error.response.status >= 500);
