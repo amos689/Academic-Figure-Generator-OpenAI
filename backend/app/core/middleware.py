@@ -10,6 +10,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
 from app.config import get_settings
+from app.core.upload_limit import UploadLimitMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 def setup_middleware(app: FastAPI) -> None:
     """Register all middleware on the application."""
     setup_cors(app)
+    app.add_middleware(
+        UploadLimitMiddleware, max_bytes=(2 * get_settings().MAX_UPLOAD_SIZE_MB + 1) * 1024 * 1024
+    )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(LocalMutationMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=get_settings().ALLOWED_HOSTS)
