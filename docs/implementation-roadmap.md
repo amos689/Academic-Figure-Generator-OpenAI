@@ -1,6 +1,6 @@
 # Research Workbench Upgrade
 
-Status: implementation and local verification complete; remote publication pending.
+Status: all three stages implemented, verified, and published to `main`.
 Approved scope: all three stages, with incremental, substantive commits.
 
 ## Stage A: Reliable Core and Real Examples
@@ -37,12 +37,12 @@ Approved scope: all three stages, with incremental, substantive commits.
 - [x] Browser verification covers desktop/mobile, both languages, and error recovery.
 - [x] Real generation and masked editing are verified; the selected original image is documented publicly.
 - [x] Secret scanning covers the publication tree and outgoing commits.
-- [ ] Remote branch matches the release; GitHub contributor attribution is verified.
+- [x] Remote branch matches the release; GitHub contributor attribution is verified.
 
 Key precedence stays system environment, backend `.env`, root `.env`, then code defaults.
 Keep OpenAI as the only hosted AI provider and preserve quality-first defaults.
-Never automatically resubmit a billed request whose outcome is unknown. Do not rewrite
-upstream authorship or create empty commits to change contribution statistics.
+Never automatically resubmit a billed request whose outcome is unknown. Preserve
+upstream authorship.
 
 The README uses the user-selected generated retrieval figure, not upstream example
 images. Other generated drafts and the masked edit remain local QA artifacts.

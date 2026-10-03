@@ -15,6 +15,7 @@ Local verification completed on 2026-10-04.
 | Public example | Source text, both prompt stages, FigureSpec, settings, token usage, and the selected original PNG are published together. |
 | README animation | Both languages render and loop; all local documentation links resolve. Desktop and mobile previews were inspected. |
 | Runtime logs | Redaction preserves Uvicorn access-log fields; the restarted local servers return healthy responses without formatter errors. |
+| Publication | The remote `main` commit was verified, and GitHub Actions passed both the backend and frontend jobs. Publication files and outgoing Git blobs were scanned for credentials and private local paths. |
 
 The image model's output still needs scientific and visual review. The selected
 example has a corpus-routing issue and a short stray blue line. It is retained as
