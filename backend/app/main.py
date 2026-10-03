@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.core.exceptions import register_exception_handlers
@@ -108,11 +107,6 @@ def create_app() -> FastAPI:
 
     # Routers
     _include_routers(app, settings.API_V1_PREFIX)
-
-    # Static file serving for generated figures and uploads
-    data_dir = Path(settings.DATA_DIR)
-    data_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
     return app
 
