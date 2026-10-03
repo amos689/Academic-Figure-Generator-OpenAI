@@ -1,6 +1,7 @@
 from .base import Base, TimestampMixin
 from .color_scheme import ColorScheme
 from .document import Document
+from .figure_export import FigureExport
 from .image import Image
 from .job import Job
 from .project import Project
@@ -17,4 +18,5 @@ __all__ = [
     "ColorScheme",
     "Job",
     "PromptRevision",
+    "FigureExport",
 ]

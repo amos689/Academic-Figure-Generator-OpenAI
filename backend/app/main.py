@@ -24,6 +24,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.dependencies import _engine, get_async_session_factory
     from app.services.job_handlers import register_handlers
     from app.services.job_service import JobRunner
+    from app.services.process_service import stop_offline_workers
     from filelock import FileLock
 
     settings = get_settings()
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
     finally:
         await runner.stop()
+        await stop_offline_workers()
         await _engine.dispose()
         worker_lock.release()
     logger.info("Shutting down Academic Figure Generator API...")
@@ -120,6 +122,7 @@ def _include_routers(app: FastAPI, prefix: str) -> None:
         ("app.api.v1.images", "router"),
         ("app.api.v1.color_schemes", "router"),
         ("app.api.v1.jobs", "router"),
+        ("app.api.v1.exports", "router"),
     ]
 
     for module_path, attr in router_modules:

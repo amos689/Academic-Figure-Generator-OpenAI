@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.access import require_api_key, require_project
 from app.core.exceptions import AppException
 from app.dependencies import get_db
-from app.models import Document, Image, Job
+from app.models import Document, FigureExport, Image, Job
 from app.schemas.job import JobResponse
 from app.services.job_handlers import resource_failure
 from app.services.job_service import enqueue_job, get_job, now
@@ -88,6 +88,12 @@ async def retry_job(job_id: str, db: AsyncSession = Depends(get_db)):
                 generation_error=None,
                 retry_count=Image.retry_count + 1,
             )
+        )
+    elif created and job.kind == "export":
+        await db.execute(
+            update(FigureExport)
+            .where(FigureExport.id == job.resource_id)
+            .values(job_id=job.id, generation_status="pending", generation_error=None)
         )
     await db.commit()
     await db.refresh(job)
