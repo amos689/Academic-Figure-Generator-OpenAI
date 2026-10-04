@@ -19,17 +19,18 @@ A local-first, bilingual workspace for research figures. Import a paper, choose 
 
 ## See It in Action
 
-A short description of a retrieval workflow becomes a **3840 × 2160 pastel figure**: parallel retrieval, a shared reranker, an evidence pack, and an answer with citations.
+A published paper becomes a **4800 × 1920 pastel method figure**. This example reads Section 3 of [Masked Autoencoders Are Scalable Vision Learners (He et al., CVPR 2022)](https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html) and visualizes its asymmetric encoder-decoder: 75% masking, visible-only encoding, mask-token insertion, and reconstruction loss on missing patches.
 
-![From source text through pastel settings and a detailed drawing prompt to the finished research figure](./docs/demo/demo.gif)
+![From the peer-reviewed MAE paper through pastel settings and a drawing prompt to a concrete method figure](./docs/demo/demo.gif)
 
-1. **Describe the method.** Upload the example text and select Pastel, Quality, and the ML TopConf (Seaborn Deep) palette.
-2. **Shape the drawing prompt.** `gpt-6-astra` with `max` reasoning produces a 13,245-character prompt and a source-linked FigureSpec.
+1. **Read the paper.** Upload the official PDF, select **3. Approach**, and choose Pastel, Quality, and the ML TopConf (Seaborn Deep) palette.
+2. **Shape the drawing prompt.** `gpt-6-astra` with `max` reasoning connects the method to concrete image patches, labeled features, and explicit supervision paths.
 3. **Generate the figure.** `gpt-image-2.5-sunburst` renders the reviewed prompt at maximum quality, 16:9, 4K.
+4. **Finish the layout.** The example's [local composition script](./docs/demo/layout_mae.py) arranges the artwork on a wider 5:2 canvas with aligned modules and precise connections.
 
-[View the full-resolution PNG](./examples/showcase/retrieval/figure.png) · [Try the source text](./examples/showcase/retrieval/input.txt) · [Read the full prompt](./examples/showcase/retrieval/prompt.txt) · [Settings and usage](./examples/showcase/retrieval/manifest.json)
+[View the full-resolution PNG](./examples/showcase/mae/figure.png) · [Read the paper](https://openaccess.thecvf.com/content/CVPR2022/papers/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.pdf) · [Read the full prompt](./examples/showcase/mae/prompt.txt) · [Settings and usage](./examples/showcase/mae/manifest.json)
 
-The [walkthrough](./examples/showcase/README.md) includes the complete Image API prompt and the FigureSpec. This run took **374.52 s** for the prompt and **73.45 s** for the image.
+The [walkthrough](./examples/showcase/README.md) includes the exact generation request, both prompt stages, method notes, and the semantic graph. Follow the same bicycle image through the diagram: its patches carry the explanation, not decorative icons.
 
 ## Why This Workbench
 

@@ -1,0 +1,13 @@
+Masked Autoencoders Are Scalable Vision Learners
+He et al. | CVPR 2022 | Section 3: Approach
+
+Method
+MAE divides an image into non-overlapping patches and randomly removes 75% of them. Only the visible patches enter the ViT encoder. After encoding, a shared learned mask vector fills the missing positions. The full sequence receives decoder positional embeddings and enters a lightweight decoder. Its pixel predictions are compared with the original image using mean squared error only on masked patches. After pre-training, the encoder can process complete images for recognition.
+
+Drawing choices
+A red bicycle provides recognizable image content. The 4 x 4 grid makes four retained patches and twelve missing patches easy to follow. Patch indices 3, 6, 12 and 13 stay aligned across the illustration. This grid and scene illustrate the computation; they are not a reported reconstruction experiment.
+
+Source
+https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html
+
+These notes summarize the method for the animation. The actual prompt-generation input was Section 3 extracted from the official PDF, not these notes.

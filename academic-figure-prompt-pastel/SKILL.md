@@ -40,18 +40,16 @@ tools: [bash]
 
 > 字体是区分这种风格与传统论文图的核心特征之一
 
-### 规则 3：排满但不拥挤
+### 规则 3：内容具体，信息密度服务于方法
 
 ```
-每个面板 = 充满内容（token、曲线、公式、图标、箭头）
-元素间距 = 8-12px 微间距，不留大面积空白
-整体感 = "信息丰富、排列有序" 而非 "空旷稀疏"
-但也不 = 重叠、堆砌、文字墙
+每个元素 = 对应论文中的输入、表示、操作、输出或监督关系
+优先展示 = 实际图像区域、具有含义的张量、掩码、公式和数据变化
+元素间距 = 按阅读路径留白，不为填满画布添加装饰
+整体感 = 方法可以沿连线被读懂，内容丰富但不堆砌
 ```
 
-> ❌ 每个面板只放 1-3 个元素（太空）  
-> ❌ 密密麻麻文字标注堆砌（太挤）  
-> ✅ 丰富的视觉元素 + 一致的微间距 = 充实而有序
+> 每个 token、图标和插图都应解释一个具体对象或操作。删掉后不影响理解的元素可以不画；不要用空白文档、随机方块或伪曲线充数。
 
 ### 规则 4：浮动元素，不嵌套框
 
@@ -168,8 +166,10 @@ Titles semi-bold to bold (600-700), ~16-18pt. Body regular (400), ~10-11pt.
 Math in italic serif (Computer Modern). The rounded font gives a warm, approachable,
 modern feel.
 
-CONTENT DENSITY: Panels are FILLED with content — tokens, curves, formulas, icons,
-arrows — with consistent 8-12px micro-spacing. "Thoughtfully packed" not "sparse".
+CONTENT: Show the actual inputs, representations, transformations, and outputs
+supported by the paper. Use tokens, curves, formulas, and icons only when they
+explain a specific operation. Leave enough space to follow the computation;
+never add generic document icons, empty squares, or invented plots to fill space.
 
 NO NESTED BOXES: Elements float directly on white panel surfaces. Only pill-shaped
 labels for concept names.
@@ -188,7 +188,7 @@ White panel, subtle shadow, rounded corners ~20px.
 
 Title: Bold [颜色] rounded font "[标题]" (~18pt).
 
-Content (packed, floating elements):
+Content (source-grounded representations and operations):
   [元素描述...]
 ```
 
@@ -271,13 +271,13 @@ Resolution: [宽] × [高] px minimum.
 - [ ] **纯白画布**：canvas = `#FFFFFF`，无渐变、无灰底
 - [ ] **白色面板**：panel fill = `#FFFFFF`，靠 soft shadow 浮起
 - [ ] **圆角字体**：指定 Nunito/Poppins/Quicksand，不是 Helvetica
-- [ ] **排满内容**：每个面板充满元素（token+曲线+公式+图标），无大片空白
+- [ ] **内容有据**：每个元素对应具体输入、表示、操作或输出，不靠装饰填空
 - [ ] **微间距**：元素间 8-12px，不重叠不拥挤
 - [ ] **无嵌套框**：元素浮在面板上，无 box-in-box
 - [ ] **Pill 标签**：概念名用极淡色药丸标签
 - [ ] **彩色文字**：关键词用语义色（coral/teal/purple/green）
 - [ ] **Token 有边框**：小方块 pastel 填充 + 1px 暗边框
-- [ ] **丰富插画**：有曲线、网络图、决策树、轨迹图等，不光是方块
+- [ ] **插画有义**：插画展示方法中的真实变化，示意输入与实际实验结果不混淆
 - [ ] **公式渲染**：italic serif，浮在面板上
 - [ ] **友好现代**：整体像 2024 ICLR oral 的图，温暖可亲
 

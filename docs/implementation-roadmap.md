@@ -11,7 +11,7 @@ Approved scope: all three stages, with incremental, substantive commits.
 - [x] Persist jobs, commit before dispatch, limit concurrency, and detect interrupted work.
 - [x] Connect prompt editing, palette selection, and uncropped image previews.
 - [x] Produce public examples through the application, retain inputs and actual settings.
-- [x] Add bilingual README animations for the user-selected retrieval figure and its generation process.
+- [x] Add bilingual README animations for the figure-generation process.
 
 ## Stage B: Research Workflow
 
@@ -44,6 +44,7 @@ Keep OpenAI as the only hosted AI provider and preserve quality-first defaults.
 Never automatically resubmit a billed request whose outcome is unknown. Preserve
 upstream authorship.
 
-The README uses the user-selected generated retrieval figure, not upstream example
-images. Other generated drafts and the masked edit remain local QA artifacts.
+The README now uses a paper-grounded MAE example from CVPR 2022. This showcase
+follow-up is verified locally and approved for publication. Prior
+educational drafts remain local QA artifacts, not README examples.
 See [verification notes](verification.md) for the checks and known limits.

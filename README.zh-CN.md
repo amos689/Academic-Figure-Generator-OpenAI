@@ -19,17 +19,18 @@
 
 ## 看看生成过程
 
-从一段检索流程描述，生成一张 **3840 × 2160 的 Pastel 配图**：双路检索、共享重排序、证据包，以及带引用的回答。
+从一篇正式发表的论文，制作一张 **4800 × 1920 的 Pastel 方法图**。本例读取 [He 等人在 CVPR 2022 发表的 Masked Autoencoders Are Scalable Vision Learners](https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html) 第 3 节，展现其非对称编码器与解码器：75% 遮挡、仅编码可见块、加入遮挡标记，以及只在缺失区域计算重建损失。
 
-![从原始文本、Pastel 设置、详细绘图提示词到最终论文配图的生成过程](./docs/demo/demo.zh-CN.gif)
+![从经过同行评议的 MAE 论文、Pastel 设置和绘图提示词到具体方法图的生成过程](./docs/demo/demo.zh-CN.gif)
 
-1. **描述方法。** 上传示例文本，选择 Pastel 风格、Quality 档位和 ML TopConf (Seaborn Deep) 配色。
-2. **细化绘图提示词。** `gpt-6-astra` 使用 `max` 推理，生成 13,245 字符的英文提示词和带来源引用的 FigureSpec。
+1. **读取论文。** 上传官方 PDF，选择 **3. Approach**，使用 Pastel 风格、Quality 档位和 ML TopConf (Seaborn Deep) 配色。
+2. **细化绘图提示词。** `gpt-6-astra` 使用 `max` 推理，将方法转化为具体的图像块、带标记的特征，以及明确的监督路径。
 3. **生成成品。** `gpt-image-2.5-sunburst` 根据审阅后的提示词，以最高画质、16:9、4K 输出图片。
+4. **调整排版。** 本例的[本地构图脚本](./docs/demo/layout_mae.py)将素材排入更宽的 5:2 画布，对齐模块并精确连接端点。
 
-[查看高清 PNG](./examples/showcase/retrieval/figure.png) · [使用原始文本](./examples/showcase/retrieval/input.txt) · [阅读完整提示词](./examples/showcase/retrieval/prompt.txt) · [参数与用量](./examples/showcase/retrieval/manifest.json)
+[查看高清 PNG](./examples/showcase/mae/figure.png) · [阅读原论文](https://openaccess.thecvf.com/content/CVPR2022/papers/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.pdf) · [阅读完整提示词](./examples/showcase/mae/prompt.txt) · [参数与用量](./examples/showcase/mae/manifest.json)
 
-[案例说明](./examples/showcase/README.zh-CN.md)提供完整 Image API 提示词和 FigureSpec。本次提示词生成耗时 **374.52 秒**，生图耗时 **73.45 秒**。
+[案例说明](./examples/showcase/README.zh-CN.md)提供实际生成请求、两阶段提示词、方法概要和语义结构。同一张自行车图像贯穿整个过程，让图像块本身解释计算，而不是用通用图标代替内容。
 
 ## 工作台能力
 

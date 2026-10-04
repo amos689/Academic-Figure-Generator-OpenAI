@@ -1,44 +1,66 @@
-# 证据优先检索
+# MAE：从真实论文到方法配图
 
 [English](README.md) · **简体中文**
 
-![Pastel 风格的证据优先检索流程图](retrieval/figure.png)
+![MAE 掩码自编码器的 Pastel 方法图](mae/figure.png)
 
-这个原创教学示例展示：问题进入词法与语义双路检索，经共享重排序器形成证据包，最终生成带引用的回答。原始文本是为本项目演示编写的一份简短说明。
+**论文：**Kaiming He、Xinlei Chen、Saining Xie、Yanghao Li、Piotr Dollar、Ross Girshick，*Masked Autoencoders Are Scalable Vision Learners*，CVPR 2022，16000-16009 页。[官方会议论文集](https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html) · [论文 PDF](https://openaccess.thecvf.com/content/CVPR2022/papers/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.pdf)
 
-## 如何生成类似配图
+项目直接读取官方 PDF 中的 **第 3 节 Approach**，将论文的非对称预训练过程转化为图像：编码器只接收可见图像块，编码后才加入共享遮挡标记，解码器预测像素，重建损失仅计算遮挡区域。
 
-1. 启动应用，新建项目，上传 [input.txt](retrieval/input.txt)。
-2. 选中文档及全部章节，选择 **Pastel、Quality、ML TopConf (Seaborn Deep)、整体框架图**，数量设为一张。
-3. 将 [request.json](retrieval/request.json) 中的 `user_request` 粘贴到需求框，生成提示词。
-4. 审阅英文提示词和带原文引用的 FigureSpec。本例直接使用第一版提示词，没有手动修改。
-5. 选择 **16:9、4K、Quality**，生成并下载 PNG。
+## 图里每个元素的含义
 
-也可以把 [prompt.txt](retrieval/prompt.txt) 粘贴到“直接生成”，选择同样的风格、配色和图片参数。重新生成时，布局与细节可能有所不同。
+- **图像块包含具体内容。** 同一辆红色自行车贯穿原图、保留的局部图像和预测示意图。
+- **编码器输入是稀疏的。** 示意网格的 16 块中保留 4 块，展示 75% 遮挡。
+- **特征不是原图裁块。** 编码后使用 `z3`、`z6`、`z12`、`z13` 表示对应位置的特征。
+- **遮挡向量是共享的。** 12 个缺失位置填入同一个学习向量 `M`，再为所有 token 加入解码器位置编码。
+- **监督路径明确。** 原图目标与预测像素在遮挡块 MSE 处汇合，可见区域不参与损失计算。
 
-## 这张图的生成记录
+自行车画面和 4 × 4 网格是解释方法的原创绘图选择，不是论文中的重建实验结果，也没有使用论文原图。
 
-| 阶段 | 实际设置 | 耗时 |
-| --- | --- | --- |
-| 原文选择 | 四个章节，完整覆盖 | 本地解析 |
-| 提示词 | `gpt-6-astra`，推理 `max`，Standard 处理 | 374.517 秒 |
-| 构图规则 | Pastel Skill、自定义需求、ML TopConf Deep 配色 | 包含在提示词生成中 |
-| 图片 | `gpt-image-2.5-sunburst`，画质 `max`，3840 × 2160 | 73.450 秒 |
+## 在工作台中生成
 
-文本模型生成了 13,245 字符的绘图提示词，以及含九个节点、十二条连接的 FigureSpec。后端追加统一的渲染要求和精确配色，再将完整提示词发送给 Image API。这张 PNG 是首次文生图结果，没有使用参考图或蒙版。
+1. 下载上方官方 PDF，新建项目并上传论文。
+2. 选择 **3. Approach**。本次解析结果中的零基章节索引为 `11`，对应 PDF 第 3-4 页；所选章节完整进入上下文。
+3. 选择 **Pastel、Quality、ML TopConf (Seaborn Deep)、整体框架图**，数量为 1；使用 [request.json](mae/request.json) 中的需求。
+4. 生成并审阅提示词和带原文引用的 FigureSpec。本次第 2 次修订将画布统一为 **3840 × 2160、16:9**，没有改变科学结构。
+5. 使用 **4K、16:9、Quality** 生成图片并检查。
+6. 本例进行了两次参考图编辑，第二次使用连线区域蒙版；[首次编辑指令](mae/edit-instruction.txt)、[蒙版编辑指令](mae/connector-instruction.txt)和[初始 PNG](mae/initial.png)一并提供。
+7. 在仓库根目录运行 `uv run --project backend --locked python docs/demo/layout_mae.py`，将已保存的素材排成 **4800 × 1920、5:2** 成品。这个案例专用脚本复用生成的自行车图块，在本地定位模块、文字和连线端点。
+
+也可以将 [prompt.txt](mae/prompt.txt) 粘贴到快捷生成，选择相同风格、配色和尺寸。不同次生成的布局可能有所变化。
+
+## 生成记录
+
+| 阶段 | 本次实际配置 |
+| --- | --- |
+| 来源 | CVPR 2022 官方 PDF，第 3 节，所选章节完整覆盖 |
+| 提示词 | `gpt-6-astra`，推理 `max`，Standard 处理 |
+| 结构 | 18 个节点、19 条连接，与论文方法核对 |
+| 图片 | `gpt-image-2.5-sunburst`，画质 `max`，3840 × 2160 |
+| 渲染 | Pastel、ML TopConf Deep 配色、文生图 |
+| 精修 | 两次 Image API 编辑，第二次使用编辑蒙版 |
+| 最终排版 | 本地 5:2 构图，4800 × 1920，不再调用生图接口 |
+
+[manifest.json](mae/manifest.json) 记录实际耗时、Token 用量和提示词修订版本。后端在审阅后的绘图提示词末尾附加风格方向和语义配色，再调用 Image API。
 
 ## 文件
 
 | 文件 | 内容 |
 | --- | --- |
-| [input.txt](retrieval/input.txt) | 完整原始文本 |
-| [request.json](retrieval/request.json) | 配图要求和风格选择 |
-| [prompt.txt](retrieval/prompt.txt) | 文本模型生成的英文绘图提示词 |
-| [image-prompt.txt](retrieval/image-prompt.txt) | 包含后端渲染要求的完整 Image API 提示词 |
-| [figure-spec.json](retrieval/figure-spec.json) | 语义图结构和原文引用 |
-| [manifest.json](retrieval/manifest.json) | 模型、画质、尺寸、耗时和 Token 用量 |
-| [figure.png](retrieval/figure.png) | 原始 3840 × 2160 PNG |
+| [method-notes.txt](mae/method-notes.txt) | 动图使用的简短方法概要 |
+| [request.json](mae/request.json) | 本次实际配图需求 |
+| [prompt.txt](mae/prompt.txt) | 审阅后的英文绘图提示词 |
+| [image-prompt.txt](mae/image-prompt.txt) | 实际发送给 Image API 的完整提示词 |
+| [edit-prompt.txt](mae/edit-prompt.txt) | 参考图精修使用的完整提示词 |
+| [connector-prompt.txt](mae/connector-prompt.txt) | 蒙版编辑使用的完整提示词 |
+| [refined.png](mae/refined.png)、[repair-base.png](mae/repair-base.png) | 用于排版的 Image API 编辑输出 |
+| [layout_mae.py](../../docs/demo/layout_mae.py) | 可复现的横向排版与端点连线脚本 |
+| [figure-spec.json](mae/figure-spec.json) | 语义结构，公开副本省略论文逐字引文 |
+| [manifest.json](mae/manifest.json) | 论文出处、章节对应关系、实际设置、耗时和用量 |
+| [visual-contract.md](mae/visual-contract.md) | 科学结构与构图决策 |
+| [figure.png](mae/figure.png) | 4800 × 1920 最终 PNG |
 
-FigureSpec 与图片是两个独立输出。投稿前应检查图片的连线；本例的语料连接和一小段多余蓝线仍需调整。这里保留原始文件，便于对照生成记录。
+上传的 PDF 和精确原文引用保留在本地工作台。公开 FigureSpec 是语义结构，并非 PNG 的矢量重建版本。
 
-动图源码与构建方法：[docs/demo](../../docs/demo/README.md)。
+动图源码与构建方式：[docs/demo](../../docs/demo/README.md)。

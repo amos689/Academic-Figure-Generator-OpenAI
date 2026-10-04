@@ -28,10 +28,11 @@ STYLES = {
         "description": "Airy modern ML diagrams",
         "instructions": (
             "Use a pure white canvas with airy modern ML paper composition, soft pastel region "
-            "fills, compact rounded panels, subtle shadows, small token squares, readable rounded "
-            "sans-serif labels, and clear connector arrows. "
-            "Keep rich scientific content organized, "
-            "not decorative or vague. Use palette accents consistently across modules."
+            "fills, restrained grouping, readable rounded sans-serif labels, and clear connector "
+            "arrows. Show concrete inputs, representations, operations, and outputs. "
+            "Use tokens, icons, or insets only when they explain a source-supported operation; "
+            "do not fill space with decorative squares or generic document icons. "
+            "Use palette accents consistently across modules."
         ),
     },
 }

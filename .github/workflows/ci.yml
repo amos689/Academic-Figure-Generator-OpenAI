@@ -36,7 +36,7 @@ jobs:
           python -m pip install uv==0.12.1
           uv sync --locked --extra dev
       - name: Lint all backend code and tests
-        run: uv run --locked ruff check app tests ../docs/demo/make_gif.py
+        run: uv run --locked ruff check app tests ../docs/demo/make_gif.py ../docs/demo/layout_mae.py
       - name: Run offline backend tests
         run: uv run --locked pytest -q
 

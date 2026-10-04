@@ -31,3 +31,10 @@ def test_styles_reach_final_image_prompt():
     assert "pastel" in text and "#ABCDEF" in text and "A -> B" in text
     assert {style["id"] for style in style_presets()} == {"classic", "pastel"}
     assert generation_profile("draft")["image_quality"] == "medium"
+
+
+def test_pastel_guidance_requires_meaningful_representations():
+    text = compose_image_prompt("A -> B", "pastel", {"primary": "#ABCDEF"})
+    assert "source-supported operation" in text
+    assert "concrete inputs, representations, operations, and outputs" in text
+    assert "small token squares" not in text

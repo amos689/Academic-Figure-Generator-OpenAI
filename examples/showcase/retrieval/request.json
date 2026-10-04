@@ -1,8 +1,0 @@
-{
-  "style_preset": "pastel",
-  "profile": "quality",
-  "color_scheme": "ml-topconf-deep",
-  "max_figures": 1,
-  "figure_types": ["overall_framework"],
-  "user_request": "Create one polished, publication-ready 16:9 pastel framework diagram for this original educational workflow. Use airy white space, readable dark labels, soft blue, coral and mint accents, and small purposeful document/token illustrations. All scientific content must come from the supplied source. Include a faithful editable FigureSpec with exact source quotes for every node and edge. Keep branch convergence and the direct question-to-generator connection unambiguous. Avoid performance numbers, decorative charts, invented modules and oversized title text."
-}

@@ -1,0 +1,290 @@
+{
+  "schema_version": 2,
+  "title": "MAE: Masked autoencoders",
+  "source": {
+    "kind": "Peer-reviewed conference paper",
+    "title": "Masked Autoencoders Are Scalable Vision Learners",
+    "authors": [
+      "Kaiming He",
+      "Xinlei Chen",
+      "Saining Xie",
+      "Yanghao Li",
+      "Piotr Dollar",
+      "Ross Girshick"
+    ],
+    "venue": "CVPR 2022",
+    "pages": "16000-16009",
+    "url": "https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html",
+    "pdf_url": "https://openaccess.thecvf.com/content/CVPR2022/papers/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.pdf",
+    "filename": "He_2022_CVPR_MAE.pdf",
+    "selected_sections": [
+      11
+    ],
+    "selected_section_titles": [
+      "3. Approach"
+    ],
+    "selected_pdf_pages": [
+      3,
+      4
+    ],
+    "coverage_ratio": 1.0,
+    "summary_file": "method-notes.txt",
+    "generation_input": "Selected section extracted from the official PDF"
+  },
+  "prompt_generation": {
+    "model": "gpt-6-astra",
+    "reasoning_effort": "max",
+    "max_output_tokens": 32768,
+    "service_tier": "default",
+    "style_preset": "pastel",
+    "profile": "quality",
+    "revision": 2,
+    "characters": 4765,
+    "duration_ms": 344971,
+    "usage": {
+      "input_tokens": 6596,
+      "input_tokens_details": {
+        "cache_write_tokens": 6593,
+        "cached_tokens": 0
+      },
+      "output_tokens": 20727,
+      "output_tokens_details": {
+        "reasoning_tokens": 15413
+      },
+      "total_tokens": 27323
+    },
+    "file": "prompt.txt",
+    "figure_spec": "figure-spec.json",
+    "nodes": 18,
+    "edges": 19,
+    "source_quotes_included": false,
+    "element_source_sections": {
+      "input_image": [
+        11
+      ],
+      "random_sampling": [
+        11
+      ],
+      "sparse_image": [
+        11
+      ],
+      "gathered_crops": [
+        11
+      ],
+      "patch_embedding": [
+        11
+      ],
+      "vit_encoder": [
+        11
+      ],
+      "visible_features": [
+        11
+      ],
+      "mask_vector": [
+        11
+      ],
+      "repeat_mask_tokens": [
+        11
+      ],
+      "append_restore": [
+        11
+      ],
+      "full_decoder_input": [
+        11
+      ],
+      "decoder_positions": [
+        11
+      ],
+      "small_decoder": [
+        11
+      ],
+      "pixel_projection": [
+        11
+      ],
+      "reshape": [
+        11
+      ],
+      "prediction": [
+        11
+      ],
+      "masked_pixel_pairs": [
+        11
+      ],
+      "masked_loss": [
+        11
+      ],
+      "e01": [
+        11
+      ],
+      "e02": [
+        11
+      ],
+      "e03": [
+        11
+      ],
+      "e04": [
+        11
+      ],
+      "e05": [
+        11
+      ],
+      "e06": [
+        11
+      ],
+      "e07": [
+        11
+      ],
+      "e08": [
+        11
+      ],
+      "e09": [
+        11
+      ],
+      "e10": [
+        11
+      ],
+      "e11": [
+        11
+      ],
+      "e12": [
+        11
+      ],
+      "e13": [
+        11
+      ],
+      "e14": [
+        11
+      ],
+      "e15": [
+        11
+      ],
+      "e16": [
+        11
+      ],
+      "e17": [
+        11
+      ],
+      "e18": [
+        11
+      ],
+      "e19": [
+        11
+      ]
+    }
+  },
+  "image_generation": {
+    "model": "gpt-image-2.5-sunburst",
+    "quality": "max",
+    "style_preset": "pastel",
+    "profile": "quality",
+    "resolution": "4K",
+    "aspect_ratio": "16:9",
+    "width": 3840,
+    "height": 2160,
+    "color_scheme": "ml-topconf-deep",
+    "palette": {
+      "primary": "#4C72B0",
+      "secondary": "#DD8452",
+      "tertiary": "#55A868",
+      "text": "#1F2937",
+      "fill": "#FFFFFF",
+      "section_bg": "#F8FAFC",
+      "border": "#CBD5E1",
+      "arrow": "#334155"
+    },
+    "operation": "generate",
+    "mask_used": false,
+    "duration_ms": 73926,
+    "usage": {
+      "input_tokens": 1300,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 1300
+      },
+      "output_tokens": 13342,
+      "total_tokens": 14642,
+      "output_tokens_details": {
+        "image_tokens": 13342,
+        "text_tokens": 0
+      }
+    },
+    "file": "initial.png",
+    "prompt_file": "image-prompt.txt",
+    "requested_at_utc": "2026-10-04T08:48:31"
+  },
+  "image_refinement": {
+    "model": "gpt-image-2.5-sunburst",
+    "quality": "max",
+    "style_preset": "pastel",
+    "width": 3840,
+    "height": 2160,
+    "operation": "edit",
+    "mask_used": false,
+    "duration_ms": 74241,
+    "usage": {
+      "input_tokens": 3021,
+      "input_tokens_details": {
+        "image_tokens": 1508,
+        "text_tokens": 1513
+      },
+      "output_tokens": 13342,
+      "total_tokens": 16363,
+      "output_tokens_details": {
+        "image_tokens": 13342,
+        "text_tokens": 0
+      }
+    },
+    "file": "refined.png",
+    "reference_file": "initial.png",
+    "instruction_file": "edit-instruction.txt",
+    "prompt_file": "edit-prompt.txt"
+  },
+  "image_correction": {
+    "model": "gpt-image-2.5-sunburst",
+    "quality": "max",
+    "style_preset": "pastel",
+    "width": 3840,
+    "height": 2160,
+    "operation": "edit",
+    "mask_used": true,
+    "duration_ms": 75827,
+    "usage": {
+      "input_tokens": 3380,
+      "input_tokens_details": {
+        "image_tokens": 1508,
+        "text_tokens": 1872
+      },
+      "output_tokens": 13342,
+      "total_tokens": 16722,
+      "output_tokens_details": {
+        "image_tokens": 13342,
+        "text_tokens": 0
+      }
+    },
+    "file": "repair-base.png",
+    "reference_file": "refined.png",
+    "mask_file": "connector-mask.png",
+    "instruction_file": "connector-instruction.txt",
+    "prompt_file": "connector-prompt.txt"
+  },
+  "local_finishing": {
+    "operation": "deterministic_layout",
+    "script": "../../../docs/demo/layout_mae.py",
+    "reference_files": [
+      "refined.png",
+      "repair-base.png"
+    ],
+    "file": "figure.png",
+    "width": 4800,
+    "height": 1920,
+    "aspect_ratio": "5:2",
+    "changes": [
+      "Wider left-to-right flow",
+      "Port-attached connectors",
+      "Shared mask vector connected to append operation",
+      "Consistent patch grids and indices"
+    ],
+    "additional_api_calls": 0
+  },
+  "selected_image": "figure.png"
+}

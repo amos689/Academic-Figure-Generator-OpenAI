@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "title": "Asymmetric MAE pre-training with masked-pixel reconstruction",
+  "caption": "A schematic 4×4 example tracks visible patches through a ViT encoder, restores the full decoder input using shared learned mask tokens, and computes pixel-space MSE only at masked locations. The bicycle, retained indices, and illustrated prediction are explanatory drawing choices, not reported experimental inputs or results.",
+  "direction": "LR",
+  "nodes": [
+    {
+      "id": "input_image",
+      "label": "Input image x · schematic 4×4 patch layout",
+      "role": "input",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "random_sampling",
+      "label": "Uniform random sampling without replacement",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "sparse_image",
+      "label": "Visible crops at original indices 3, 6, 12, 13 · schematic",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "gathered_crops",
+      "label": "Gather the four retained crops",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "patch_embedding",
+      "label": "Linear patch projection + encoder positional embeddings",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "vit_encoder",
+      "label": "ViT encoder · visible embeddings only",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "visible_features",
+      "label": "Encoded visible features: z3, z6, z12, z13",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "mask_vector",
+      "label": "Shared learned mask vector M",
+      "role": "input",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "repeat_mask_tokens",
+      "label": "Repeat shared M for missing patches · 12 in this schematic",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "append_restore",
+      "label": "Append mask tokens after encoding; inverse shuffle",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "full_decoder_input",
+      "label": "Full decoder input · 16 tokens in restored spatial order",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "decoder_positions",
+      "label": "Add decoder positions to every token",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "small_decoder",
+      "label": "Small MAE decoder",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "pixel_projection",
+      "label": "Decoder final linear projection → patch pixels",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "reshape",
+      "label": "Reshape patch predictions into an image",
+      "role": "process",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "prediction",
+      "label": "Schematic bicycle prediction ŷ",
+      "role": "output",
+      "group_id": "pretraining",
+      "sources": []
+    },
+    {
+      "id": "masked_pixel_pairs",
+      "label": "Aligned masked target/prediction pixels · patch 10 illustrated",
+      "role": "process",
+      "group_id": "masked_objective",
+      "sources": []
+    },
+    {
+      "id": "masked_loss",
+      "label": "Pixel-space MSE over masked patches only",
+      "role": "output",
+      "group_id": "masked_objective",
+      "sources": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "e01",
+      "source": "input_image",
+      "target": "random_sampling",
+      "label": "Non-overlapping patches → uniform random selection",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e02",
+      "source": "random_sampling",
+      "target": "sparse_image",
+      "label": "Retain selected patches; remove the rest",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e03",
+      "source": "sparse_image",
+      "target": "gathered_crops",
+      "label": "Gather visible patches only",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e04",
+      "source": "gathered_crops",
+      "target": "patch_embedding",
+      "label": "Project retained crops and add their positions",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e05",
+      "source": "patch_embedding",
+      "target": "vit_encoder",
+      "label": "Visible positioned embeddings only",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e06",
+      "source": "vit_encoder",
+      "target": "visible_features",
+      "label": "Encode visible observations",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e07",
+      "source": "visible_features",
+      "target": "append_restore",
+      "label": "Encoded visible features",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e08",
+      "source": "mask_vector",
+      "target": "repeat_mask_tokens",
+      "label": "Repeat the same learned vector",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e09",
+      "source": "repeat_mask_tokens",
+      "target": "append_restore",
+      "label": "Append mask tokens after the encoder",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e10",
+      "source": "append_restore",
+      "target": "full_decoder_input",
+      "label": "Inverse shuffle restores original patch locations",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e11",
+      "source": "full_decoder_input",
+      "target": "decoder_positions",
+      "label": "All visible features and mask tokens",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e12",
+      "source": "decoder_positions",
+      "target": "small_decoder",
+      "label": "Full token set with decoder positions",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e13",
+      "source": "small_decoder",
+      "target": "pixel_projection",
+      "label": "Decoder final layer predicts patch pixels",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e14",
+      "source": "pixel_projection",
+      "target": "reshape",
+      "label": "Patch pixel vectors",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e15",
+      "source": "reshape",
+      "target": "prediction",
+      "label": "Reconstructed image",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e16",
+      "source": "input_image",
+      "target": "masked_pixel_pairs",
+      "label": "Original target pixels",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e17",
+      "source": "prediction",
+      "target": "masked_pixel_pairs",
+      "label": "Predicted pixels",
+      "kind": "data",
+      "sources": []
+    },
+    {
+      "id": "e18",
+      "source": "random_sampling",
+      "target": "masked_pixel_pairs",
+      "label": "Masked indices Ω select supervised locations",
+      "kind": "control",
+      "sources": []
+    },
+    {
+      "id": "e19",
+      "source": "masked_pixel_pairs",
+      "target": "masked_loss",
+      "label": "Average pixel MSE across masked patches only",
+      "kind": "data",
+      "sources": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "pretraining",
+      "label": "Asymmetric MAE pre-training"
+    },
+    {
+      "id": "masked_objective",
+      "label": "Masked-pixel reconstruction objective"
+    }
+  ]
+}
